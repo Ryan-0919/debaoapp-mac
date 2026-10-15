@@ -24,7 +24,7 @@ export interface ServerConfig {
   refundReviewThreshold: number;
 }
 
-const adapterModes = new Set(['local', 'http', 'unconfigured']);
+const adapterModes = new Set(['local', 'http', 'aliyun', 'unconfigured']);
 function adapterMode(value: string | undefined, fallback: string) {
   const mode = value ?? fallback;
   if (!adapterModes.has(mode)) throw new Error(`Invalid adapter mode: ${mode}`);

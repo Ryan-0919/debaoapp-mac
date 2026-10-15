@@ -511,6 +511,7 @@ export interface VerificationChallenge {
   requestedAt: string;
   expiresAt: string;
   attempts: number;
+  codeHash?: string;
   consumedAt?: string;
 }
 

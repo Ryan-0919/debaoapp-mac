@@ -1676,21 +1676,23 @@ async function sendVerificationCode(phone: string, purpose: SmsPurpose, context:
   if (recentForIp >= 20) throw new HttpError(429, 'AUTH_CODE_RATE_LIMITED', '当前网络验证码请求过于频繁，请稍后再试', {retryAfter: 3600});
   const recentForDevice = context.deviceId ? store.verificationChallenges.filter(item => item.deviceId === context.deviceId && Date.now() - Date.parse(item.requestedAt) < 3_600_000).length : 0;
   if (recentForDevice >= 10) throw new HttpError(429, 'AUTH_CODE_RATE_LIMITED', '当前设备验证码请求过于频繁，请稍后再试', {retryAfter: 3600});
+  const verificationCode = String(100000 + (randomBytes(4).readUInt32BE(0) % 900000));
   let result;
-  try { result = await smsAdapter.sendCode(phone, purpose); } catch (error) { throw adapterFailure(smsAdapter.name, error); }
+  try { result = await smsAdapter.sendCode(phone, purpose, verificationCode); } catch (error) { throw adapterFailure(smsAdapter.name, error); }
   if (!result.accepted) return {accepted: false, expiresIn: 300};
-  const challenge: VerificationChallenge = {phone, purpose, providerMessageId: result.providerMessageId, requestIp: context.requestIp, deviceId: context.deviceId, requestedAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 300_000).toISOString(), attempts: 0};
+  const codeHash = createHash('sha256').update(`${phone}:${purpose}:${verificationCode}`).digest('hex');
+  const challenge: VerificationChallenge = {phone, purpose, providerMessageId: result.providerMessageId, requestIp: context.requestIp, deviceId: context.deviceId, requestedAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 300_000).toISOString(), attempts: 0, codeHash};
   store.verificationChallenges.push(challenge);
-  await persist('insert into auth_verification_challenges (phone, purpose, provider_message_id, request_ip, device_id, requested_at, expires_at) values ($1, $2, $3, $4, $5, $6, $7)', [phone, purpose, challenge.providerMessageId, challenge.requestIp ?? null, challenge.deviceId ?? null, challenge.requestedAt, challenge.expiresAt]);
+  await persist('insert into auth_verification_challenges (phone, purpose, provider_message_id, request_ip, device_id, requested_at, expires_at, code_hash) values ($1, $2, $3, $4, $5, $6, $7, $8)', [phone, purpose, challenge.providerMessageId, challenge.requestIp ?? null, challenge.deviceId ?? null, challenge.requestedAt, challenge.expiresAt, challenge.codeHash]);
   return {accepted: true, expiresIn: 300, ...(smsAdapter.name === 'local' ? {developmentCode: '123456'} : {})};
 }
 async function verifyCodeChallenge(phone: string, code: string, purpose: SmsPurpose) {
   let challenge = latestChallenge(phone, purpose);
   if (!challenge) {
-    const result = await infrastructure.query<{phone: string; purpose: SmsPurpose; provider_message_id: string; requested_at: string; expires_at: string; attempts: number; consumed_at?: string}>('select phone, purpose, provider_message_id, requested_at, expires_at, attempts, consumed_at from auth_verification_challenges where phone = $1 and purpose = $2 order by requested_at desc limit 1', [phone, purpose]);
+    const result = await infrastructure.query<{phone: string; purpose: SmsPurpose; provider_message_id: string; request_ip?: string; device_id?: string; requested_at: string; expires_at: string; attempts: number; code_hash?: string; consumed_at?: string}>('select phone, purpose, provider_message_id, request_ip, device_id, requested_at, expires_at, attempts, code_hash, consumed_at from auth_verification_challenges where phone = $1 and purpose = $2 order by requested_at desc limit 1', [phone, purpose]);
     const row = result?.rows[0];
     if (row) {
-      challenge = {phone: row.phone, purpose: row.purpose, providerMessageId: row.provider_message_id, requestedAt: new Date(row.requested_at).toISOString(), expiresAt: new Date(row.expires_at).toISOString(), attempts: row.attempts, consumedAt: row.consumed_at ? new Date(row.consumed_at).toISOString() : undefined};
+      challenge = {phone: row.phone, purpose: row.purpose, providerMessageId: row.provider_message_id, requestIp: row.request_ip, deviceId: row.device_id, requestedAt: new Date(row.requested_at).toISOString(), expiresAt: new Date(row.expires_at).toISOString(), attempts: row.attempts, codeHash: row.code_hash, consumedAt: row.consumed_at ? new Date(row.consumed_at).toISOString() : undefined};
       store.verificationChallenges.push(challenge);
     }
   }
@@ -1699,7 +1701,7 @@ async function verifyCodeChallenge(phone: string, code: string, purpose: SmsPurp
   if (Date.parse(challenge.expiresAt) <= Date.now()) throw new HttpError(401, 'AUTH_CODE_EXPIRED', '验证码已过期');
   if (challenge.attempts >= 5) throw new HttpError(429, 'AUTH_CODE_ATTEMPTS_EXCEEDED', '验证次数过多，请重新获取验证码');
   let verified;
-  try { verified = await smsAdapter.verifyCode(phone, code, purpose); } catch (error) { throw adapterFailure(smsAdapter.name, error); }
+  try { verified = await smsAdapter.verifyCode(phone, code, purpose, challenge.codeHash); } catch (error) { throw adapterFailure(smsAdapter.name, error); }
   if (!verified.valid) {
     challenge.attempts += 1;
     await persist('update auth_verification_challenges set attempts = $1 where provider_message_id = $2', [challenge.attempts, challenge.providerMessageId]);
@@ -2211,8 +2213,8 @@ export async function hydrateStore() {
   }
   const identities = await infrastructure.query<{user_id: string; provider: 'wechat'; provider_user_id: string; union_id?: string; nickname?: string; created_at: string}>('select user_id, provider, provider_user_id, union_id, nickname, created_at from user_identities');
   if (identities) store.identities = identities.rows.map(item => ({userId: internalUserId(item.user_id), provider: item.provider, providerUserId: item.provider_user_id, unionId: item.union_id, nickname: item.nickname, createdAt: new Date(item.created_at).toISOString()}));
-  const challenges = await infrastructure.query<{phone: string; purpose: SmsPurpose; provider_message_id: string; request_ip?: string; device_id?: string; requested_at: string; expires_at: string; attempts: number; consumed_at?: string}>('select phone, purpose, provider_message_id, request_ip, device_id, requested_at, expires_at, attempts, consumed_at from auth_verification_challenges where requested_at > now() - interval \'1 hour\' order by requested_at');
-  if (challenges) store.verificationChallenges = challenges.rows.map(item => ({phone: item.phone, purpose: item.purpose, providerMessageId: item.provider_message_id, requestIp: item.request_ip, deviceId: item.device_id, requestedAt: new Date(item.requested_at).toISOString(), expiresAt: new Date(item.expires_at).toISOString(), attempts: item.attempts, consumedAt: item.consumed_at ? new Date(item.consumed_at).toISOString() : undefined}));
+  const challenges = await infrastructure.query<{phone: string; purpose: SmsPurpose; provider_message_id: string; request_ip?: string; device_id?: string; requested_at: string; expires_at: string; attempts: number; code_hash?: string; consumed_at?: string}>('select phone, purpose, provider_message_id, request_ip, device_id, requested_at, expires_at, attempts, code_hash, consumed_at from auth_verification_challenges where requested_at > now() - interval \'1 hour\' order by requested_at');
+  if (challenges) store.verificationChallenges = challenges.rows.map(item => ({phone: item.phone, purpose: item.purpose, providerMessageId: item.provider_message_id, requestIp: item.request_ip, deviceId: item.device_id, requestedAt: new Date(item.requested_at).toISOString(), expiresAt: new Date(item.expires_at).toISOString(), attempts: item.attempts, codeHash: item.code_hash, consumedAt: item.consumed_at ? new Date(item.consumed_at).toISOString() : undefined}));
   const deletions = await infrastructure.query<{user_id: string; requested_at: string; execute_after: string; cancelled_at?: string; completed_at?: string}>('select user_id, requested_at, execute_after, cancelled_at, completed_at from account_deletion_requests order by requested_at desc');
   if (deletions) store.deletionRequests = new Map(deletions.rows.map(item => { const userId = internalUserId(item.user_id); return [userId, {userId, requestedAt: new Date(item.requested_at).toISOString(), executeAfter: new Date(item.execute_after).toISOString(), cancelledAt: item.cancelled_at ? new Date(item.cancelled_at).toISOString() : undefined, completedAt: item.completed_at ? new Date(item.completed_at).toISOString() : undefined}]; }));
   if (process.env.DEBAO_TEST_FIXTURES === 'true') restoreDevelopmentGradingShowcase(store);

@@ -1,5 +1,8 @@
-import {randomUUID} from 'node:crypto';
+import {createHash, randomUUID} from 'node:crypto';
 import type {SmsPurpose} from './types.js';
+import {randomInt} from 'node:crypto';
+import * as Dysmsapi from '@alicloud/dysmsapi20170525';
+import {$OpenApiUtil} from '@alicloud/openapi-core';
 
 interface HttpProviderOptions {
   endpoint?: string;
@@ -32,8 +35,8 @@ export interface PaymentAdapter {
 
 export interface SmsAdapter {
   readonly name: string;
-  sendCode(phone: string, purpose: SmsPurpose): Promise<{accepted: boolean; providerMessageId: string}>;
-  verifyCode(phone: string, code: string, purpose: SmsPurpose): Promise<{valid: boolean}>;
+  sendCode(phone: string, purpose: SmsPurpose, code?: string): Promise<{accepted: boolean; providerMessageId: string}>;
+  verifyCode(phone: string, code: string, purpose: SmsPurpose, expectedCodeHash?: string): Promise<{valid: boolean}>;
 }
 
 export interface PushAdapter {
@@ -94,19 +97,87 @@ export class HttpPaymentAdapter implements PaymentAdapter {
 
 export class LocalSmsAdapter implements SmsAdapter {
   readonly name = 'local';
-  async sendCode(_phone: string, _purpose: SmsPurpose) { return {accepted: true, providerMessageId: `LOCAL-SMS-${randomUUID()}`}; }
-  async verifyCode(_phone: string, code: string, _purpose: SmsPurpose) { return {valid: code === '123456'}; }
+  async sendCode(_phone: string, _purpose: SmsPurpose, _code?: string) { return {accepted: true, providerMessageId: `LOCAL-SMS-${randomUUID()}`}; }
+  async verifyCode(_phone: string, code: string, _purpose: SmsPurpose, _expectedCodeHash?: string) { return {valid: code === '123456'}; }
 }
 export class UnconfiguredSmsAdapter implements SmsAdapter {
   readonly name = 'unconfigured';
-  async sendCode(_phone: string, _purpose: SmsPurpose) { return {accepted: false, providerMessageId: 'SMS-NOT-CONFIGURED'}; }
-  async verifyCode(_phone: string, _code: string, _purpose: SmsPurpose) { return {valid: false}; }
+  async sendCode(_phone: string, _purpose: SmsPurpose, _code?: string) { return {accepted: false, providerMessageId: 'SMS-NOT-CONFIGURED'}; }
+  async verifyCode(_phone: string, _code: string, _purpose: SmsPurpose, _expectedCodeHash?: string) { return {valid: false}; }
 }
 export class HttpSmsAdapter implements SmsAdapter {
   readonly name = 'http';
   constructor(private readonly options: HttpProviderOptions) {}
-  sendCode(phone: string, purpose: SmsPurpose) { return postJson<{accepted: boolean; providerMessageId: string}>('sms', this.options, '/sms/send-code', {phone, purpose}); }
-  verifyCode(phone: string, code: string, purpose: SmsPurpose) { return postJson<{valid: boolean}>('sms', this.options, '/sms/verify-code', {phone, code, purpose}); }
+  sendCode(phone: string, purpose: SmsPurpose, code?: string) { return postJson<{accepted: boolean; providerMessageId: string}>('sms', this.options, '/sms/send-code', {phone, purpose, code}); }
+  verifyCode(phone: string, code: string, purpose: SmsPurpose, _expectedCodeHash?: string) { return postJson<{valid: boolean}>('sms', this.options, '/sms/verify-code', {phone, code, purpose}); }
+}
+
+interface AliyunSmsOptions {
+  accessKeyId?: string;
+  accessKeySecret?: string;
+  signName?: string;
+  templateCode?: string;
+  timeoutMs?: number;
+}
+
+type AliyunSdkClient = {sendSms(request: unknown): Promise<{body?: {code?: string; message?: string; bizId?: string; requestId?: string}}>};
+
+export class AliyunSmsAdapter implements SmsAdapter {
+  readonly name = 'aliyun';
+  private readonly client: AliyunSdkClient;
+  private readonly options: AliyunSmsOptions;
+  private readonly codes = new Map<string, {code: string; expiresAt: number}>();
+
+  constructor(options: AliyunSmsOptions) {
+    if (!options.accessKeyId || !options.accessKeySecret || !options.signName || !options.templateCode) {
+      throw new Error('Aliyun SMS credentials, sign name and template code are required');
+    }
+    this.options = options;
+    const packageModule = Dysmsapi.default as unknown as {default: new (config: $OpenApiUtil.Config) => AliyunSdkClient};
+    const ClientCtor = packageModule.default;
+    this.client = new ClientCtor(new $OpenApiUtil.Config({
+      accessKeyId: options.accessKeyId,
+      accessKeySecret: options.accessKeySecret,
+      endpoint: 'dysmsapi.aliyuncs.com',
+      connectTimeout: options.timeoutMs ?? 8_000,
+      readTimeout: options.timeoutMs ?? 8_000,
+    }));
+  }
+
+  async sendCode(phone: string, purpose: SmsPurpose, providedCode?: string) {
+    const code = providedCode ?? String(randomInt(100000, 1000000));
+    const response = await this.client.sendSms(new Dysmsapi.SendSmsRequest({
+      phoneNumbers: phone,
+      signName: this.options.signName,
+      templateCode: this.options.templateCode,
+      templateParam: JSON.stringify({code}),
+      outId: `debao-${purpose}-${Date.now()}`,
+    }));
+    const body = response.body;
+    if (body?.code !== 'OK') {
+      throw new Error(`Aliyun SMS ${body?.code ?? 'UNKNOWN'}: ${body?.message ?? 'send failed'}`);
+    }
+    this.codes.set(this.key(phone, purpose), {code, expiresAt: Date.now() + 300_000});
+    return {accepted: true, providerMessageId: body.bizId ?? body.requestId ?? `ALIYUN-SMS-${randomUUID()}`};
+  }
+
+  async verifyCode(phone: string, code: string, purpose: SmsPurpose, expectedCodeHash?: string) {
+    if (expectedCodeHash) {
+      const actual = createHash('sha256').update(`${phone}:${purpose}:${code}`).digest('hex');
+      return {valid: actual === expectedCodeHash};
+    }
+    const key = this.key(phone, purpose);
+    const current = this.codes.get(key);
+    if (!current || current.expiresAt <= Date.now()) {
+      this.codes.delete(key);
+      return {valid: false};
+    }
+    const valid = current.code === code;
+    if (valid) this.codes.delete(key);
+    return {valid};
+  }
+
+  private key(phone: string, purpose: SmsPurpose) { return `${purpose}:${phone}`; }
 }
 
 export class LocalPushAdapter implements PushAdapter {
@@ -212,13 +283,23 @@ function options(prefix: string, env: ProviderEnv): HttpProviderOptions {
   return {endpoint: env[`${prefix}_PROVIDER_URL`], apiKey: env[`${prefix}_PROVIDER_KEY`], timeoutMs: Number(env.PROVIDER_TIMEOUT_MS ?? 8_000)};
 }
 
+function aliyunSmsOptions(env: ProviderEnv): AliyunSmsOptions {
+  return {
+    accessKeyId: env.SMS_PROVIDER_ACCESS_KEY_ID,
+    accessKeySecret: env.SMS_PROVIDER_ACCESS_KEY_SECRET,
+    signName: env.SMS_SIGN_NAME,
+    templateCode: env.SMS_TEMPLATE_CODE,
+    timeoutMs: Number(env.PROVIDER_TIMEOUT_MS ?? 8_000),
+  };
+}
+
 export function createPaymentAdapter(env: ProviderEnv = process.env): PaymentAdapter {
   const mode = env.PAYMENT_ADAPTER ?? (env.DEBAO_TEST_FIXTURES === 'true' ? 'local' : 'unconfigured');
   return mode === 'local' && env.DEBAO_TEST_FIXTURES === 'true' ? new LocalPaymentAdapter() : mode === 'http' ? new HttpPaymentAdapter(options('PAYMENT', env)) : new UnconfiguredPaymentAdapter();
 }
 export function createSmsAdapter(env: ProviderEnv = process.env): SmsAdapter {
   const mode = env.SMS_ADAPTER ?? (env.DEBAO_TEST_FIXTURES === 'true' ? 'local' : 'unconfigured');
-  return mode === 'local' && env.DEBAO_TEST_FIXTURES === 'true' ? new LocalSmsAdapter() : mode === 'http' ? new HttpSmsAdapter(options('SMS', env)) : new UnconfiguredSmsAdapter();
+  return mode === 'local' && env.DEBAO_TEST_FIXTURES === 'true' ? new LocalSmsAdapter() : mode === 'http' ? new HttpSmsAdapter(options('SMS', env)) : mode === 'aliyun' ? new AliyunSmsAdapter(aliyunSmsOptions(env)) : new UnconfiguredSmsAdapter();
 }
 export function createPushAdapter(env: ProviderEnv = process.env): PushAdapter {
   const mode = env.PUSH_ADAPTER ?? 'unconfigured';
