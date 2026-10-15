@@ -1,6 +1,6 @@
 import {createHash} from 'node:crypto';
 import {readFileSync,writeFileSync,existsSync,copyFileSync} from 'node:fs';
-const channelId='8396848', base='https://denfk.vip';
+const channelId='8396848', base='https://debao-api.denlaw.cn';
 const secret=process.env.POLYV_APP_SECRET;
 async function api(path,extra={},json) {
   const p={appId:process.env.POLYV_APP_ID,channelId,timestamp:String(Date.now()),...extra};

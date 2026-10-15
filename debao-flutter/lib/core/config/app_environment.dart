@@ -7,7 +7,7 @@ const remoteDataDefault =
 enum AppEnvironment {
   development('开发', 'http://127.0.0.1:4000'),
   staging('预发布', 'https://staging-api.example.invalid'),
-  production('生产', 'https://api.example.invalid');
+  production('生产', 'https://debao-api.denlaw.cn');
 
   const AppEnvironment(this.label, this._defaultApiBaseUrl);
 
@@ -33,7 +33,9 @@ enum AppEnvironment {
     return _defaultApiBaseUrl;
   }
 
-  static AppEnvironment get current => AppEnvironment.development;
+  // The shipped client must use the deployed API by default. Local or staging
+  // environments remain available through DEBAO_API_BASE_URL at build time.
+  static AppEnvironment get current => AppEnvironment.production;
 
   bool get allowsMocks => false;
 }

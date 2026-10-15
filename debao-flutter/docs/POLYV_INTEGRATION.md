@@ -40,7 +40,7 @@ POLYV_AUTH_CALLBACK_URL=https://api.example.com/v1/live/polyv/authorize
 
 ```powershell
 flutter run `
-  --dart-define=DEBAO_API_BASE_URL=https://denfk.vip `
+  --dart-define=DEBAO_API_BASE_URL=https://debao-api.denlaw.cn `
   --dart-define=POLYV_APP_ID=<Polyv AppID> `
   --dart-define=POLYV_USER_ID=<Polyv UserID> `
   --dart-define=POLYV_APP_SECRET=<Polyv AppSecret>

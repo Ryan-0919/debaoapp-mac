@@ -19,7 +19,7 @@ values = {
     'DEBAO_ADMIN_USERNAME': 'admin', 'DEBAO_ADMIN_PASSWORD': admin_password,
     'DEBAO_ADMIN_MFA_REQUIRED': 'true',
     'ADMIN_INIT_USERNAME': 'admin', 'ADMIN_INIT_PASSWORD': admin_password,
-    'POLYV_AUTH_CALLBACK_URL': 'https://denfk.vip/v1/live/polyv/authorize',
+    'POLYV_AUTH_CALLBACK_URL': 'https://debao-api.denlaw.cn/v1/live/polyv/authorize',
 }
 for adapter in ['PAYMENT', 'SMS', 'PUSH', 'GRADING', 'AI', 'MEDIA', 'WECHAT_AUTH', 'CARRIER_AUTH']:
     values[f'{adapter}_ADAPTER'] = 'unconfigured'
@@ -30,5 +30,5 @@ if source.exists():
         if separator and key in ['POLYV_USER_ID', 'POLYV_APP_ID', 'POLYV_APP_SECRET', 'POLYV_AUTH_SECRET'] and value.strip():
             values[key] = value.strip().strip('\"').strip("'")
 api.write_text(''.join(f'{key}={value}\n' for key, value in values.items()))
-(config / 'admin-login.txt').write_text(f'URL: https://denfk.vip/login\nUsername: admin\nPassword: {admin_password}\nFirst login requires authenticator enrollment.\n')
+(config / 'admin-login.txt').write_text(f'URL: https://debao-admin.denlaw.cn/login\nUsername: admin\nPassword: {admin_password}\nFirst login requires authenticator enrollment.\n')
 print('Environment and administrator credentials generated (not displayed).')
