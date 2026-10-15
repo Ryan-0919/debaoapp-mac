@@ -22,6 +22,7 @@ class ObjectiveAnswerScreen extends StatelessWidget {
     this.remoteEnabled = remoteDataDefault,
     this.subjectId,
     this.mode = 'chapter',
+    this.questionType,
     this.paperId,
     this.questionIds = const [],
     this.limit,
@@ -35,6 +36,7 @@ class ObjectiveAnswerScreen extends StatelessWidget {
   final bool remoteEnabled;
   final String? subjectId;
   final String mode;
+  final String? questionType;
   final String? paperId;
   final List<String> questionIds;
   final int? limit;
@@ -50,6 +52,7 @@ class ObjectiveAnswerScreen extends StatelessWidget {
           remoteEnabled: remoteEnabled,
           subjectId: subjectId,
           mode: mode,
+          questionType: questionType,
           paperId: paperId,
           questionIds: questionIds,
           limit: limit,
@@ -67,6 +70,7 @@ class _ObjectiveAnswerBody extends ConsumerStatefulWidget {
     required this.remoteEnabled,
     required this.subjectId,
     required this.mode,
+    required this.questionType,
     required this.paperId,
     required this.questionIds,
     required this.limit,
@@ -80,6 +84,7 @@ class _ObjectiveAnswerBody extends ConsumerStatefulWidget {
   final bool remoteEnabled;
   final String? subjectId;
   final String mode;
+  final String? questionType;
   final String? paperId;
   final List<String> questionIds;
   final int? limit;
@@ -219,6 +224,7 @@ class _ObjectiveAnswerScreenState extends ConsumerState<_ObjectiveAnswerBody>
       mode: widget.mode,
       title: widget.title,
       subjectId: widget.subjectId,
+      questionType: widget.questionType,
       paperId: widget.paperId,
       questionIds: widget.questionIds,
       limit: widget.limit,

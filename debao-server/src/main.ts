@@ -3365,6 +3365,8 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
       const modeValue = String(input.mode ?? 'chapter');
       if (!['chapter', 'year', 'random', 'exam'].includes(modeValue)) throw new HttpError(422, 'VALIDATION_ERROR', '答题模式不正确');
       const mode = modeValue as ObjectiveSession['mode'];
+      const requestedQuestionType = typeof input.questionType === 'string' && input.questionType.trim() ? input.questionType.trim() : undefined;
+      if (requestedQuestionType && !['true_false', 'single', 'multiple', 'indeterminate'].includes(requestedQuestionType)) throw new HttpError(422, 'VALIDATION_ERROR', '题型筛选不正确');
       const requestedKey = String(req.headers['idempotency-key'] ?? input.idempotencyKey ?? '').trim() || undefined;
       if (requestedKey && (requestedKey.length < 8 || requestedKey.length > 120)) throw new HttpError(422, 'VALIDATION_ERROR', 'Idempotency-Key 格式不正确');
       if (requestedKey) {
@@ -3383,6 +3385,7 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
         ? (paper?.questionIds ?? learningPaper?.questionIds ?? []).map(id => store.questions.find(question => question.id === id) ?? learningBankCandidates.find(question => question.id === id)).filter((item): item is Question => Boolean(item))
         : [...store.questions, ...learningBankCandidates].filter(item => isPublishedQuestion(item) && questionMatchesSubject(item, subjectId ?? null));
       candidates = candidates.filter(item => isPublishedQuestion(item) && (!subjectId || questionMatchesSubject(item, subjectId)));
+      if (requestedQuestionType) candidates = candidates.filter(item => (item.questionType ?? 'single') === requestedQuestionType);
       if (Array.isArray(input.questionIds) && input.questionIds.length > 0) {
         const requestedIds = [...new Set(input.questionIds.map(String))];
         const byId = new Map(candidates.map(item => [item.id, item]));

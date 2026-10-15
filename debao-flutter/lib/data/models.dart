@@ -538,6 +538,7 @@ class ObjectiveSessionRequest {
   const ObjectiveSessionRequest({
     required this.title,
     this.mode = 'chapter',
+    this.questionType,
     this.subjectId,
     this.paperId,
     this.questionIds = const [],
@@ -548,6 +549,7 @@ class ObjectiveSessionRequest {
   });
 
   final String mode;
+  final String? questionType;
   final String title;
   final String? subjectId;
   final String? paperId;
@@ -563,6 +565,7 @@ class ObjectiveSessionRequest {
     final fingerprint = Object.hash(
       mode,
       title,
+      questionType,
       subjectId,
       paperId,
       Object.hashAll(questionIds),
@@ -577,6 +580,7 @@ class ObjectiveSessionRequest {
       other is ObjectiveSessionRequest &&
       other.mode == mode &&
       other.title == title &&
+      other.questionType == questionType &&
       other.subjectId == subjectId &&
       other.paperId == paperId &&
       _listEquals(other.questionIds, questionIds) &&
@@ -589,6 +593,7 @@ class ObjectiveSessionRequest {
   int get hashCode => Object.hash(
         mode,
         title,
+        questionType,
         subjectId,
         paperId,
         Object.hashAll(questionIds),

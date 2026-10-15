@@ -434,6 +434,7 @@ class QuestionRepository {
   Future<ObjectiveSession> createObjectiveSession({
     required String mode,
     required String title,
+    String? questionType,
     String? subjectId,
     String? paperId,
     List<String>? questionIds,
@@ -444,6 +445,8 @@ class QuestionRepository {
     final payload = <String, dynamic>{
       'mode': mode,
       'title': title,
+      if (questionType != null && questionType.isNotEmpty)
+        'questionType': questionType,
       if (subjectId != null && subjectId.isNotEmpty) 'subjectId': subjectId,
       if (paperId != null && paperId.isNotEmpty) 'paperId': paperId,
       if (questionIds != null && questionIds.isNotEmpty)
@@ -484,6 +487,7 @@ class QuestionRepository {
     return createObjectiveSession(
       mode: request.mode,
       title: request.title,
+      questionType: request.questionType,
       subjectId: request.subjectId,
       paperId: request.paperId,
       questionIds: request.questionIds,
@@ -499,6 +503,10 @@ class QuestionRepository {
         session.title != request.title ||
         session.subjectId != request.subjectId ||
         session.paperId != request.paperId) {
+      return false;
+    }
+    if (request.questionType != null &&
+        session.questions.any((item) => item.questionType != request.questionType)) {
       return false;
     }
 
