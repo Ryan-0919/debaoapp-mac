@@ -7,21 +7,32 @@ import '../../core/network/api_client.dart';
 import '../../data/models.dart';
 import '../../data/providers.dart';
 import '../../shared/debao_components.dart';
+import '../../shared/route_back_button.dart';
 import 'objective_answer_screen.dart';
 import 'subjective_screens.dart';
 
 class QuestionBankScreen extends StatelessWidget {
-  const QuestionBankScreen({super.key, this.remoteEnabled = remoteDataDefault});
+  const QuestionBankScreen({
+    super.key,
+    this.remoteEnabled = remoteDataDefault,
+    this.showBackButton = false,
+  });
   final bool remoteEnabled;
+  final bool showBackButton;
 
   @override
   Widget build(BuildContext context) =>
-      ProviderScope(child: _QuestionBankBody(remoteEnabled: remoteEnabled));
+      ProviderScope(
+          child: _QuestionBankBody(
+              remoteEnabled: remoteEnabled,
+              showBackButton: showBackButton));
 }
 
 class _QuestionBankBody extends ConsumerStatefulWidget {
-  const _QuestionBankBody({required this.remoteEnabled});
+  const _QuestionBankBody(
+      {required this.remoteEnabled, required this.showBackButton});
   final bool remoteEnabled;
+  final bool showBackButton;
 
   @override
   ConsumerState<_QuestionBankBody> createState() => _QuestionBankScreenState();
@@ -58,11 +69,19 @@ class _QuestionBankScreenState extends ConsumerState<_QuestionBankBody> {
         preferredSize: const Size.fromHeight(52),
         child: Container(
           color: DebaoColors.surface,
-          alignment: Alignment.center,
-          child: DebaoSegmented(
-            labels: const ['客观题', '主观题'],
-            selected: subjective ? 1 : 0,
-            onChanged: (i) => setState(() => subjective = i == 1),
+          child: Row(
+            children: [
+              if (widget.showBackButton)
+                const SizedBox(width: 48, child: DebaoRouteBackButton()),
+              Expanded(
+                  child: Center(
+                      child: DebaoSegmented(
+                labels: const ['客观题', '主观题'],
+                selected: subjective ? 1 : 0,
+                onChanged: (i) => setState(() => subjective = i == 1),
+              ))),
+              if (widget.showBackButton) const SizedBox(width: 48),
+            ],
           ),
         ),
       ),

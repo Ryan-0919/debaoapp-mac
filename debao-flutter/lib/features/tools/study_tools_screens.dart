@@ -4027,11 +4027,25 @@ class _RemoteLawSearchState extends ConsumerState<_RemoteLawSearchBody> {
       DropdownButtonFormField<String>(
         value: subjectId ?? '',
         isExpanded: true,
-        decoration: const InputDecoration(
+        menuMaxHeight: 300,
+        borderRadius: BorderRadius.circular(12),
+        elevation: 4,
+        dropdownColor: Colors.white,
+        decoration: InputDecoration(
             labelText: '\u79d1\u76ee\u7b5b\u9009',
             filled: true,
             fillColor: Colors.white,
-            border: OutlineInputBorder(borderSide: BorderSide.none)),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+            border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: Color(0xFFE5E7ED))),
+            enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: Color(0xFFE5E7ED))),
+            focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: _brand, width: 1.5))),
         items: [
           const DropdownMenuItem<String>(
               value: '', child: Text('\u5168\u90e8\u79d1\u76ee')),

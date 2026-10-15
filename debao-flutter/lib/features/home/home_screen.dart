@@ -389,7 +389,8 @@ class _HomeScreenState extends ConsumerState<_HomeBody> {
                                 context,
                                 MaterialPageRoute(
                                     builder: (_) => QuestionBankScreen(
-                                        remoteEnabled: widget.remoteEnabled)))
+                                        remoteEnabled: widget.remoteEnabled,
+                                        showBackButton: true)))
                             : entry.label == '考试'
                                 ? () => Navigator.push(
                                     context,
