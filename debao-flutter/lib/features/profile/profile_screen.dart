@@ -11,6 +11,7 @@ import '../tools/study_tools_screens.dart';
 import '../account/account_service_screens.dart';
 import '../courses/courses_screen.dart';
 import '../learning/learning_inquiries_screen.dart';
+import '../../shared/route_back_button.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key, this.remoteEnabled = remoteDataDefault});
@@ -634,7 +635,9 @@ class _PrivateCoachOverviewState
     final planItems = plans.valueOrNull ?? const <LearningPlan>[];
     final paid = (orders.valueOrNull ?? const <Order>[]).any(
         (item) => ['paid', 'completed', 'fulfilled'].contains(item.status));
-    if (!paid && planItems.isEmpty) return const _PrivateCoachEmpty();
+    if (!paid && planItems.isEmpty) {
+      return const _PrivateCoachEmpty(remoteEnabled: true);
+    }
     final taskItems = tasks.valueOrNull ?? const <LearningTask>[];
     final examTasks =
         taskItems.where((item) => item.contentType == 'assessment').toList();
@@ -822,10 +825,48 @@ String _privateCoachError(Object error) {
 }
 
 class _PrivateCoachEmpty extends StatelessWidget {
-  const _PrivateCoachEmpty();
+  const _PrivateCoachEmpty({this.remoteEnabled = false});
+  final bool remoteEnabled;
+
   @override
-  Widget build(BuildContext context) =>
-      const Scaffold(body: Center(child: Text('登录并购买学习中心服务后，这里会显示你的学习数据')));
+  Widget build(BuildContext context) => Scaffold(
+        backgroundColor: DebaoColors.page,
+        appBar: AppBar(
+          leading: const DebaoRouteBackButton(fallbackLocation: '/?tab=profile'),
+          title: const Text('得恩私教学习中心'),
+          backgroundColor: DebaoColors.page,
+        ),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              const Icon(Icons.lock_outline,
+                  size: 42, color: Color(0xFF7C83A1)),
+              const SizedBox(height: 16),
+              const Text('暂未开通学习中心权限',
+                  style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: DebaoColors.ink)),
+              const SizedBox(height: 8),
+              const Text('登录并购买学习中心服务后，这里会显示你的学习数据',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: DebaoColors.muted, fontSize: 13)),
+              if (remoteEnabled) ...[
+                const SizedBox(height: 20),
+                OutlinedButton(
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const CoursesScreen(remoteEnabled: true)),
+                  ),
+                  child: const Text('查看课程并开通'),
+                ),
+              ],
+            ]),
+          ),
+        ),
+      );
 }
 
 class _LearningDataChart extends StatelessWidget {
