@@ -803,6 +803,7 @@ class Course {
       required this.title,
       required this.teacher,
       required this.type,
+      this.questionType,
       this.progress = 0,
       this.lessons = 0,
       this.accent,
@@ -817,6 +818,7 @@ class Course {
   final String title;
   final String teacher;
   final String type;
+  final String? questionType;
   final double progress;
   final int lessons;
   final String? accent;
@@ -833,6 +835,9 @@ class Course {
         title: '${json['title'] ?? json['name'] ?? ''}',
         teacher: '${json['teacher'] ?? ''}',
         type: '${json['type'] ?? 'video'}',
+        questionType:
+            (json['questionType'] ?? json['question_type'] ?? json['category'])
+                ?.toString(),
         progress: (json['progress'] as num?)?.toDouble() ?? 0,
         lessons: (json['lessons'] as num?)?.toInt() ?? 0,
         accent: json['accent'] as String?,

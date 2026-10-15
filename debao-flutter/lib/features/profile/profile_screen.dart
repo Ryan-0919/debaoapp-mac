@@ -333,7 +333,10 @@ class _ProfileContent extends StatelessWidget {
           onPressed: () => Navigator.push(
               context,
               MaterialPageRoute(
-                  builder: (_) => CoursesScreen(remoteEnabled: remoteEnabled))),
+                  builder: (_) => CoursesScreen(
+                      remoteEnabled: remoteEnabled,
+                      coursePage: true,
+                      showBackButton: true))),
           style: FilledButton.styleFrom(
               backgroundColor: const Color(0xFFC9F456),
               foregroundColor: const Color(0xFF171925),
@@ -502,7 +505,10 @@ class _Group extends StatelessWidget {
                       Icons.settings_outlined =>
                         SettingsScreen(remoteEnabled: remoteEnabled),
                       Icons.play_circle_outline =>
-                        CoursesScreen(remoteEnabled: remoteEnabled),
+                        CoursesScreen(
+                            remoteEnabled: remoteEnabled,
+                            coursePage: true,
+                            showBackButton: true),
                       _ => null,
                     };
                     if (tool != null) {
@@ -754,7 +760,10 @@ class _PrivateCoachOverviewState
             () => Navigator.push(
                 context,
                 MaterialPageRoute(
-                    builder: (_) => CoursesScreen(remoteEnabled: true)))),
+                    builder: (_) => CoursesScreen(
+                        remoteEnabled: true,
+                        coursePage: true,
+                        showBackButton: true)))),
         _privateSection(
             context,
             '我的考试',

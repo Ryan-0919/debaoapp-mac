@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/design_tokens.dart';
 import '../../data/models.dart';
+import '../../shared/debao_components.dart';
 import '../../data/providers.dart';
 import '../../shared/route_back_button.dart';
 import '../questions/objective_answer_screen.dart';
@@ -294,22 +295,29 @@ class CoursesScreen extends StatelessWidget {
     super.key,
     this.remoteEnabled = remoteDataDefault,
     this.showBackButton = false,
+    this.coursePage = false,
   });
   final bool remoteEnabled;
   final bool showBackButton;
+  final bool coursePage;
 
   @override
   Widget build(BuildContext context) => ProviderScope(
         child: _CoursesScreenBody(
-            remoteEnabled: remoteEnabled, showBackButton: showBackButton),
+            remoteEnabled: remoteEnabled,
+            showBackButton: showBackButton,
+            coursePage: coursePage),
       );
 }
 
 class _CoursesScreenBody extends ConsumerStatefulWidget {
   const _CoursesScreenBody(
-      {required this.remoteEnabled, required this.showBackButton});
+      {required this.remoteEnabled,
+      required this.showBackButton,
+      required this.coursePage});
   final bool remoteEnabled;
   final bool showBackButton;
+  final bool coursePage;
   @override
   ConsumerState<_CoursesScreenBody> createState() => _CoursesScreenState();
 }
@@ -325,6 +333,8 @@ class _CoursesScreenState extends ConsumerState<_CoursesScreenBody> {
   final completedCardSessionIds = <String>{};
   bool diagnosticPromptShown = false;
   String taskFilter = '全部';
+  String courseCategory = 'objective';
+  String courseMedia = 'video';
 
   Widget _inquiryEntry() {
     final inquiries = widget.remoteEnabled
@@ -405,17 +415,21 @@ class _CoursesScreenState extends ConsumerState<_CoursesScreenBody> {
   @override
   Widget build(BuildContext context) => Scaffold(
         backgroundColor: DebaoColors.page,
-        appBar: widget.showBackButton
+        appBar: widget.showBackButton || widget.coursePage
             ? AppBar(
                 leading: const DebaoRouteBackButton(
                     fallbackLocation: '/?tab=profile'),
-                title: const Text('学习日历'),
+                title: Text(widget.coursePage ? '我的课程' : '学习日历'),
                 backgroundColor: Colors.white,
                 surfaceTintColor: Colors.white)
             : null,
         body: SafeArea(
           bottom: false,
-          child: widget.remoteEnabled ? _remoteCalendarBody() : _calendarBody(),
+          child: widget.coursePage
+              ? _courseLibraryBody()
+              : widget.remoteEnabled
+                  ? _remoteCalendarBody()
+                  : _calendarBody(),
         ),
       );
 
@@ -1526,6 +1540,100 @@ class _CoursesScreenState extends ConsumerState<_CoursesScreenBody> {
           ],
         ),
       );
+
+  Widget _courseLibraryBody() {
+    final state = widget.remoteEnabled
+        ? ref.watch(coursesProvider)
+        : const AsyncValue<List<Course>>.data([]);
+    if (state.isLoading && !state.hasValue) {
+      return const Center(
+          child: CircularProgressIndicator(key: ValueKey('my-courses-loading')));
+    }
+    if (state.hasError && !state.hasValue) {
+      return _remoteError(state.error.toString());
+    }
+
+    final courses = (state.valueOrNull ?? const <Course>[]).where((course) {
+      final type = course.type.toLowerCase();
+      return !type.contains('live') && !type.contains('直播');
+    }).where((course) => _courseQuestionType(course) == courseCategory).where(
+        (course) => _courseHasMedia(course, courseMedia)).toList(growable: false);
+    final categoryLabel = courseCategory == 'subjective' ? '主观题' : '客观题';
+    final mediaLabel = courseMedia == 'audio' ? '音频课程' : '视频课程';
+
+    return ListView(
+      key: const ValueKey('my-courses-scroll'),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 28),
+      children: [
+        const Text('我的课程',
+            style: TextStyle(
+                color: DebaoColors.ink,
+                fontSize: 18,
+                fontWeight: FontWeight.w800)),
+        const SizedBox(height: 5),
+        const Text('按题型和课程形式查看已开通课程',
+            style: TextStyle(color: DebaoColors.muted, fontSize: 12)),
+        const SizedBox(height: 14),
+        DebaoSegmented(
+            labels: const ['主观题', '客观题'],
+            selected: courseCategory == 'subjective' ? 0 : 1,
+            onChanged: (index) => setState(() {
+              courseCategory = index == 0 ? 'subjective' : 'objective';
+            })),
+        const SizedBox(height: 12),
+        DebaoSegmented(
+            labels: const ['音频课程', '视频课程'],
+            selected: courseMedia == 'audio' ? 0 : 1,
+            onChanged: (index) => setState(() {
+              courseMedia = index == 0 ? 'audio' : 'video';
+            })),
+        const SizedBox(height: 18),
+        Row(children: [
+          Expanded(
+              child: Text('$categoryLabel · $mediaLabel',
+                  style: const TextStyle(
+                      color: DebaoColors.ink,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700))),
+          Text('${courses.length} 门',
+              style: const TextStyle(color: DebaoColors.muted, fontSize: 11)),
+        ]),
+        const SizedBox(height: 8),
+        if (courses.isEmpty)
+          _groupEmpty('暂无符合条件的已开通课程')
+        else
+          _courseGroup(courses
+              .map((course) => courseMedia == 'audio'
+                  ? _remoteAudioCard(course)
+                  : _remoteRecordedCard(course))
+              .toList(growable: false)),
+      ],
+    );
+  }
+
+  String _courseQuestionType(Course course) {
+    final value = course.questionType?.toLowerCase() ?? '';
+    if (value.contains('subjective') || value.contains('主观')) {
+      return 'subjective';
+    }
+    if (value.contains('objective') || value.contains('客观')) {
+      return 'objective';
+    }
+    final title = course.title.toLowerCase();
+    return title.contains('主观') ||
+            title.contains('案例') ||
+            title.contains('论述')
+        ? 'subjective'
+        : 'objective';
+  }
+
+  bool _courseHasMedia(Course course, String media) {
+    final type = course.type.toLowerCase();
+    if (media == 'audio') {
+      return type.contains('audio') || type.contains('音频') || type == 'mixed';
+    }
+    return type.contains('video') || type.contains('视频') || type == 'mixed';
+  }
 
   Widget _allCoursesBody() {
     final remote = widget.remoteEnabled

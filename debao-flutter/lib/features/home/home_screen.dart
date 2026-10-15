@@ -414,7 +414,7 @@ class _HomeScreenState extends ConsumerState<_HomeBody> {
                                                     builder: (_) =>
                                                         QuestionRecordsScreen(remoteEnabled: widget.remoteEnabled))))
                                         : entry.label == '我的课程' || entry.label == '课程'
-                                            ? (widget.onOpenCourses ?? () => Navigator.push(context, MaterialPageRoute(builder: (_) => CoursesScreen(remoteEnabled: widget.remoteEnabled))))
+                                            ? (widget.onOpenCourses ?? () => Navigator.push(context, MaterialPageRoute(builder: (_) => CoursesScreen(remoteEnabled: widget.remoteEnabled, coursePage: true, showBackButton: true))))
                                             : entry.label == '批改'
                                                 ? () => Navigator.push(context, MaterialPageRoute(builder: (_) => GradingServiceScreen(remoteEnabled: widget.remoteEnabled)))
                                                 : entry.label == '法条检索'
@@ -594,7 +594,9 @@ class _HomeScreenState extends ConsumerState<_HomeBody> {
                           context,
                           MaterialPageRoute(
                               builder: (_) => CoursesScreen(
-                                  remoteEnabled: widget.remoteEnabled))),
+                                  remoteEnabled: widget.remoteEnabled,
+                                  coursePage: true,
+                                  showBackButton: true))),
                   child: const Text('查看更多  ›',
                       style: TextStyle(color: _brand, fontSize: 13))),
             ],

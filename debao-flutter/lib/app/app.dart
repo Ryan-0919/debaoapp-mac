@@ -501,7 +501,13 @@ class _AppShellState extends ConsumerState<AppShell> {
             MaterialPageRoute(
                 builder: (_) => QuestionRecordsScreen(
                     remoteEnabled: widget.remoteEnabled))),
-        onOpenCourses: () => setState(() => tabIndex = 3),
+        onOpenCourses: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+                builder: (_) => CoursesScreen(
+                    remoteEnabled: widget.remoteEnabled,
+                    coursePage: true,
+                    showBackButton: true))),
         remoteEnabled: widget.remoteEnabled,
         onOpenNotifications: () => Navigator.push(
             context,
