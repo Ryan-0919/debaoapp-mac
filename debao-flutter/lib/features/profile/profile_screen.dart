@@ -7,6 +7,7 @@ import '../../core/network/api_client.dart';
 import '../../data/models.dart';
 import '../../data/providers.dart';
 import '../commerce/commerce_detail_screens.dart';
+import '../commerce/mall_screen.dart';
 import '../tools/study_tools_screens.dart';
 import '../account/account_service_screens.dart';
 import '../courses/courses_screen.dart';
@@ -858,7 +859,7 @@ class _PrivateCoachEmpty extends StatelessWidget {
                   onPressed: () => Navigator.push(
                     context,
                     MaterialPageRoute(
-                        builder: (_) => const CoursesScreen(
+                        builder: (_) => const MallScreen(
                             remoteEnabled: true, showBackButton: true)),
                   ),
                   child: const Text('查看课程并开通'),

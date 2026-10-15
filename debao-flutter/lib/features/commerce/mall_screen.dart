@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/providers.dart';
 import '../../data/models.dart';
+import '../../shared/route_back_button.dart';
 import 'commerce_detail_screens.dart';
 
 const _brand = Color(0xFF4C4BEA);
@@ -13,17 +14,26 @@ const _muted = Color(0xFF707684);
 const _line = Color(0xFFE5E7ED);
 
 class MallScreen extends StatelessWidget {
-  const MallScreen({super.key, this.remoteEnabled = remoteDataDefault});
+  const MallScreen({
+    super.key,
+    this.remoteEnabled = remoteDataDefault,
+    this.showBackButton = false,
+  });
   final bool remoteEnabled;
+  final bool showBackButton;
 
   @override
   Widget build(BuildContext context) =>
-      ProviderScope(child: _MallScreenBody(remoteEnabled: remoteEnabled));
+      ProviderScope(
+          child: _MallScreenBody(
+              remoteEnabled: remoteEnabled, showBackButton: showBackButton));
 }
 
 class _MallScreenBody extends ConsumerStatefulWidget {
-  const _MallScreenBody({required this.remoteEnabled});
+  const _MallScreenBody(
+      {required this.remoteEnabled, required this.showBackButton});
   final bool remoteEnabled;
+  final bool showBackButton;
   @override
   ConsumerState<_MallScreenBody> createState() => _MallScreenState();
 }
@@ -58,6 +68,9 @@ class _MallScreenState extends ConsumerState<_MallScreenBody> {
     return Scaffold(
       backgroundColor: _page,
       appBar: AppBar(
+          leading: widget.showBackButton
+              ? const DebaoRouteBackButton(fallbackLocation: '/?tab=profile')
+              : null,
           title: const Text('商城'),
           backgroundColor: Colors.white,
           surfaceTintColor: Colors.white),
