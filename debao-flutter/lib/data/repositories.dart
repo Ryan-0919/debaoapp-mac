@@ -397,7 +397,7 @@ class QuestionRepository {
 
   Future<List<JsonMap>> records({
     int page = 1,
-    int pageSize = 100,
+    int pageSize = 50,
     String? subjectId,
     String? mode,
   }) async =>
@@ -424,7 +424,7 @@ class QuestionRepository {
               })
           .toList(growable: false);
   Future<List<QuestionRecord>> typedRecords() async =>
-      (await recordPage(pageSize: 100)).items;
+      (await recordPage(pageSize: 50)).items;
   Future<JsonMap> recordReport(String submissionId) async => _map(
       await client.getData('/v1/question-submissions/$submissionId/report'));
   Future<JsonMap> submit(String questionId, List<String> answers) async =>

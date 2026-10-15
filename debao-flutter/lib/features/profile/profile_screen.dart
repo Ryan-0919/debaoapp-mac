@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/design_tokens.dart';
+import '../../core/network/api_client.dart';
 import '../../data/models.dart';
 import '../../data/providers.dart';
 import '../commerce/commerce_detail_screens.dart';
@@ -585,19 +586,48 @@ class _PrivateCoachOverviewState
     }
     final failed = loading.where((state) => state.hasError && !state.hasValue);
     if (failed.isNotEmpty) {
+      final failedItems = <String, AsyncValue<dynamic>>{
+        '学习计划': plans,
+        '今日任务': tasks,
+        '学习报告': report,
+        '做题记录': records,
+        '我的答疑': inquiries,
+        '订单': orders,
+      };
+      final details = failedItems.entries
+          .where((entry) => entry.value.hasError && !entry.value.hasValue)
+          .map((entry) => '${entry.key}：${_privateCoachError(entry.value.error!)}')
+          .join('\n');
       return Scaffold(
         appBar: AppBar(title: const Text('得恩私教学习中心')),
         body: Center(
-            child: TextButton(
-          onPressed: () {
-            ref.invalidate(learningPlansProvider);
-            ref.invalidate(learningTasksProvider);
-            ref.invalidate(learningReportProvider('month'));
-            ref.invalidate(typedQuestionRecordsProvider);
-            ref.invalidate(learningInquiriesProvider);
-            ref.invalidate(ordersProvider);
-          },
-          child: const Text('加载失败，点击重试'),
+            child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            const Icon(Icons.cloud_off_outlined,
+                color: DebaoColors.muted, size: 34),
+            const SizedBox(height: 12),
+            const Text('学习中心暂时无法加载',
+                style: TextStyle(fontWeight: FontWeight.w600)),
+            const SizedBox(height: 8),
+            Text(details,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                    color: DebaoColors.muted, fontSize: 12, height: 1.5)),
+            const SizedBox(height: 16),
+            TextButton.icon(
+              onPressed: () {
+                ref.invalidate(learningPlansProvider);
+                ref.invalidate(learningTasksProvider);
+                ref.invalidate(learningReportProvider('month'));
+                ref.invalidate(typedQuestionRecordsProvider);
+                ref.invalidate(learningInquiriesProvider);
+                ref.invalidate(ordersProvider);
+              },
+              icon: const Icon(Icons.refresh),
+              label: const Text('重试'),
+            ),
+          ]),
         )),
       );
     }
@@ -779,6 +809,16 @@ class _PrivateCoachOverviewState
               subtitle: Text(summary),
               trailing: const Icon(Icons.chevron_right),
               onTap: onTap));
+}
+
+String _privateCoachError(Object error) {
+  if (error is ApiError) {
+    if (error.statusCode == 401 || error.code == 'UNAUTHORIZED') {
+      return '请先登录';
+    }
+    return '${error.code}${error.statusCode == null ? '' : ' (${error.statusCode})'}：${error.message}';
+  }
+  return error.toString();
 }
 
 class _PrivateCoachEmpty extends StatelessWidget {

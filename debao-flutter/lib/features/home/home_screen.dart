@@ -454,7 +454,7 @@ class _HomeScreenState extends ConsumerState<_HomeBody> {
         ? '¥5,200'
         : '¥${featuredProduct.originalPrice ?? featuredProduct.price}';
     return Container(
-      height: 100,
+      height: 120,
       margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(borderRadius: BorderRadius.circular(10)),
