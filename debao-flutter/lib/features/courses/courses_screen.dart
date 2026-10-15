@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/design_tokens.dart';
 import '../../data/models.dart';
 import '../../data/providers.dart';
+import '../../shared/route_back_button.dart';
 import '../questions/objective_answer_screen.dart';
 import '../learning/learning_center_screens.dart';
 import '../learning/learning_card_deck.dart';
@@ -289,18 +290,26 @@ class _CardStudyPage extends StatelessWidget {
 }
 
 class CoursesScreen extends StatelessWidget {
-  const CoursesScreen({super.key, this.remoteEnabled = remoteDataDefault});
+  const CoursesScreen({
+    super.key,
+    this.remoteEnabled = remoteDataDefault,
+    this.showBackButton = false,
+  });
   final bool remoteEnabled;
+  final bool showBackButton;
 
   @override
   Widget build(BuildContext context) => ProviderScope(
-        child: _CoursesScreenBody(remoteEnabled: remoteEnabled),
+        child: _CoursesScreenBody(
+            remoteEnabled: remoteEnabled, showBackButton: showBackButton),
       );
 }
 
 class _CoursesScreenBody extends ConsumerStatefulWidget {
-  const _CoursesScreenBody({required this.remoteEnabled});
+  const _CoursesScreenBody(
+      {required this.remoteEnabled, required this.showBackButton});
   final bool remoteEnabled;
+  final bool showBackButton;
   @override
   ConsumerState<_CoursesScreenBody> createState() => _CoursesScreenState();
 }
@@ -396,6 +405,14 @@ class _CoursesScreenState extends ConsumerState<_CoursesScreenBody> {
   @override
   Widget build(BuildContext context) => Scaffold(
         backgroundColor: DebaoColors.page,
+        appBar: widget.showBackButton
+            ? AppBar(
+                leading: const DebaoRouteBackButton(
+                    fallbackLocation: '/?tab=profile'),
+                title: const Text('学习日历'),
+                backgroundColor: Colors.white,
+                surfaceTintColor: Colors.white)
+            : null,
         body: SafeArea(
           bottom: false,
           child: widget.remoteEnabled ? _remoteCalendarBody() : _calendarBody(),

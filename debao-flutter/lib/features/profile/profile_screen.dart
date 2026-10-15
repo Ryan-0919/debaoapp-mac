@@ -858,7 +858,8 @@ class _PrivateCoachEmpty extends StatelessWidget {
                   onPressed: () => Navigator.push(
                     context,
                     MaterialPageRoute(
-                        builder: (_) => const CoursesScreen(remoteEnabled: true)),
+                        builder: (_) => const CoursesScreen(
+                            remoteEnabled: true, showBackButton: true)),
                   ),
                   child: const Text('查看课程并开通'),
                 ),
