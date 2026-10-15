@@ -143,8 +143,6 @@ class _ProfileContent extends StatelessWidget {
               _Group(
                   '学习与内容',
                   [
-                    _ProfileItem(Icons.event_note_outlined, '学习计划',
-                        Color(0xFFF0F0FF), Color(0xFF4C4BEA)),
                     _ProfileItem(Icons.auto_awesome_outlined, '得恩私教学习中心',
                         Color(0xFFF0F0FF), Color(0xFF4C4BEA)),
                     _ProfileItem(Icons.description_outlined, '学习报告',
