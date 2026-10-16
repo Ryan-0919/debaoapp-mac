@@ -33,7 +33,7 @@ import {
   Typography,
   Upload,
 } from "antd";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   createLearningCard,
   deleteLearningCard,
@@ -73,6 +73,10 @@ export default function LearningCards() {
   const [keyword, setKeyword] = useState("");
   const [status, setStatus] = useState<string>();
   const [contentType, setContentType] = useState<string>();
+  const [subjectId, setSubjectId] = useState<string>();
+  const [chapterId, setChapterId] = useState<string>();
+  const [pointId, setPointId] = useState<string>();
+  const [subPointId, setSubPointId] = useState<string>();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editing, setEditing] = useState<AdminLearningCard>();
   const [assets, setAssets] = useState<AdminLearningCardAsset[]>([]);
@@ -81,12 +85,28 @@ export default function LearningCards() {
   const [preview, setPreview] = useState<AdminLearningCard>();
   const [taxonomyNodes, setTaxonomyNodes] = useState<AdminLearningTaxonomyNode[]>([]);
   const watchedType = Form.useWatch("contentType", form) ?? "image_gallery";
+  const taxonomyMap = useMemo(() => new Map(taxonomyNodes.map((node) => [node.id, node])), [taxonomyNodes]);
+  const subjects = useMemo(() => taxonomyNodes.filter((node) => node.type === "subject" && node.status === "active"), [taxonomyNodes]);
+  const chapters = useMemo(() => taxonomyNodes.filter((node) => node.type === "chapter" && node.parentId === subjectId && node.status === "active"), [subjectId, taxonomyNodes]);
+  const points = useMemo(() => taxonomyNodes.filter((node) => node.type === "point" && node.parentId === chapterId && node.status === "active"), [chapterId, taxonomyNodes]);
+  const subpoints = useMemo(() => taxonomyNodes.filter((node) => node.type === "subpoint" && node.parentId === pointId && node.status === "active"), [pointId, taxonomyNodes]);
+  const taxonomyPath = useCallback((nodeId: string) => {
+    const path: AdminLearningTaxonomyNode[] = [];
+    let current = taxonomyMap.get(nodeId);
+    while (current) {
+      path.unshift(current);
+      current = current.parentId ? taxonomyMap.get(current.parentId) : undefined;
+    }
+    return path.map((node) => node.name).join(" / ");
+  }, [taxonomyMap]);
+  const taxonomyOptions = useMemo(() => taxonomyNodes.filter((node) => node.type === "point" || node.type === "subpoint").map((node) => ({value: node.id, label: taxonomyPath(node.id)})), [taxonomyNodes, taxonomyPath]);
+  const cardTaxonomyPaths = useCallback((item: AdminLearningCard) => (item.knowledgePointIds ?? []).map(taxonomyPath).filter(Boolean), [taxonomyPath]);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const [result, taxonomy] = await Promise.all([
-        getLearningCards({ keyword, status, contentType }),
+        getLearningCards({ keyword, status, contentType, subjectId, chapterId, pointId, subPointId }),
         getLearningQuestionTaxonomy({ category: "objective" }),
       ]);
       setItems(result.items);
@@ -99,7 +119,7 @@ export default function LearningCards() {
     } finally {
       setLoading(false);
     }
-  }, [keyword, status, contentType]);
+  }, [keyword, status, contentType, subjectId, chapterId, pointId, subPointId]);
   useEffect(() => void load(), [load]);
 
   const openCreate = () => {
@@ -275,7 +295,51 @@ export default function LearningCards() {
             options={[
               { value: "image_gallery", label: "图片卡片" },
               { value: "html", label: "HTML 卡片" },
+              { value: "pdf", label: "PDF 卡片" },
             ]}
+          />
+          <Select
+            allowClear
+            showSearch
+            optionFilterProp="label"
+            placeholder="全部科目"
+            style={{ width: 150 }}
+            value={subjectId}
+            onChange={(value) => { setSubjectId(value); setChapterId(undefined); setPointId(undefined); setSubPointId(undefined); }}
+            options={subjects.map((node) => ({ value: node.id, label: node.name }))}
+          />
+          <Select
+            allowClear
+            showSearch
+            optionFilterProp="label"
+            disabled={!subjectId}
+            placeholder="全部专题/章节"
+            style={{ width: 180 }}
+            value={chapterId}
+            onChange={(value) => { setChapterId(value); setPointId(undefined); setSubPointId(undefined); }}
+            options={chapters.map((node) => ({ value: node.id, label: node.name }))}
+          />
+          <Select
+            allowClear
+            showSearch
+            optionFilterProp="label"
+            disabled={!chapterId}
+            placeholder="全部考点"
+            style={{ width: 180 }}
+            value={pointId}
+            onChange={(value) => { setPointId(value); setSubPointId(undefined); }}
+            options={points.map((node) => ({ value: node.id, label: node.name }))}
+          />
+          <Select
+            allowClear
+            showSearch
+            optionFilterProp="label"
+            disabled={!pointId}
+            placeholder="全部知识点"
+            style={{ width: 180 }}
+            value={subPointId}
+            onChange={setSubPointId}
+            options={subpoints.map((node) => ({ value: node.id, label: node.name }))}
           />
           <Select
             allowClear
@@ -391,6 +455,18 @@ export default function LearningCards() {
                         v{item.version}
                       </Typography.Text>
                     </Space>
+                    <div>
+                      <Typography.Text type="secondary">专题目录：</Typography.Text>
+                      {cardTaxonomyPaths(item).length ? (
+                        <Space wrap size={[4, 4]} style={{ marginTop: 4 }}>
+                          {cardTaxonomyPaths(item).map((path) => (
+                            <Tag color="blue" key={path}>{path}</Tag>
+                          ))}
+                        </Space>
+                      ) : (
+                        <Typography.Text type="warning">未关联专题</Typography.Text>
+                      )}
+                    </div>
                     <Space wrap>
                       <Button
                         size="small"
@@ -510,7 +586,7 @@ export default function LearningCards() {
           </Form.Item>
           <Form.Item
             name="knowledgePointIds"
-            label="关联考点 / 知识点"
+            label="专题目录 / 关联考点 / 知识点"
             rules={[{ required: true, type: "array", min: 1, message: "请至少关联一个考点或知识点" }]}
             tooltip="用户完成前置课程后，系统会按这些考点自动调用已发布卡片。"
           >
@@ -519,13 +595,8 @@ export default function LearningCards() {
               allowClear
               showSearch
               optionFilterProp="label"
-              options={taxonomyNodes
-                .filter((node) => node.type === "point" || node.type === "subpoint")
-                .map((node) => ({
-                  value: node.id,
-                  label: node.type === "subpoint" ? `↳ ${node.name}` : node.name,
-                }))}
-              placeholder="选择这张卡片覆盖的考点或知识点"
+              options={taxonomyOptions}
+              placeholder="按科目 / 专题 / 考点 / 知识点选择"
             />
           </Form.Item>
           <Form.List name="recallItems">

@@ -1336,11 +1336,19 @@ export function getLearningCards(filters?: {
   keyword?: string;
   status?: string;
   contentType?: string;
+  subjectId?: string;
+  chapterId?: string;
+  pointId?: string;
+  subPointId?: string;
 }) {
   const params = new URLSearchParams();
   if (filters?.keyword) params.set("keyword", filters.keyword);
   if (filters?.status) params.set("status", filters.status);
   if (filters?.contentType) params.set("contentType", filters.contentType);
+  if (filters?.subjectId) params.set("subjectId", filters.subjectId);
+  if (filters?.chapterId) params.set("chapterId", filters.chapterId);
+  if (filters?.pointId) params.set("pointId", filters.pointId);
+  if (filters?.subPointId) params.set("subPointId", filters.subPointId);
   return request<{
     items: AdminLearningCard[];
     total: number;
