@@ -589,6 +589,8 @@ export interface ObjectiveSession {
   title: string;
   subjectId?: string;
   paperId?: string;
+  /** Links a session to a private-coach curriculum task. */
+  learningTaskId?: string;
   questionIds: string[];
   questions: ObjectiveQuestionSnapshot[];
   answers: ObjectiveSessionAnswer[];

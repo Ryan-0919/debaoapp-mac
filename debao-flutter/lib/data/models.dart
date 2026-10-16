@@ -335,6 +335,7 @@ class ObjectiveSession {
     required this.status,
     this.subjectId,
     this.paperId,
+    this.learningTaskId,
     this.submittedAt,
     this.reportId,
     this.userId = '',
@@ -349,6 +350,7 @@ class ObjectiveSession {
   final String title;
   final String? subjectId;
   final String? paperId;
+  final String? learningTaskId;
   final List<String> questionIds;
   final List<ObjectiveSessionQuestion> questions;
   final List<ObjectiveSessionAnswer> answers;
@@ -369,6 +371,7 @@ class ObjectiveSession {
         title: '${json['title'] ?? '客观题练习'}',
         subjectId: json['subjectId'] as String?,
         paperId: json['paperId'] as String?,
+        learningTaskId: json['learningTaskId'] as String?,
         questionIds: (json['questionIds'] as List<dynamic>? ?? const [])
             .map((value) => '$value')
             .toList(growable: false),
@@ -546,6 +549,7 @@ class ObjectiveSessionRequest {
     this.durationSeconds,
     this.sessionId,
     this.idempotencyKey,
+    this.learningTaskId,
   });
 
   final String mode;
@@ -559,6 +563,9 @@ class ObjectiveSessionRequest {
   final String? sessionId;
   final String? idempotencyKey;
 
+  /// Present only when the session was opened from a private-coach task.
+  final String? learningTaskId;
+
   String get effectiveIdempotencyKey {
     final explicit = idempotencyKey?.trim();
     if (explicit != null && explicit.length >= 8) return explicit;
@@ -571,6 +578,7 @@ class ObjectiveSessionRequest {
       Object.hashAll(questionIds),
       limit,
       durationSeconds,
+      learningTaskId,
     ).abs();
     return 'flutter-objective-$fingerprint';
   }
@@ -587,7 +595,8 @@ class ObjectiveSessionRequest {
       other.limit == limit &&
       other.durationSeconds == durationSeconds &&
       other.sessionId == sessionId &&
-      other.idempotencyKey == idempotencyKey;
+      other.idempotencyKey == idempotencyKey &&
+      other.learningTaskId == learningTaskId;
 
   @override
   int get hashCode => Object.hash(
@@ -601,6 +610,7 @@ class ObjectiveSessionRequest {
         durationSeconds,
         sessionId,
         idempotencyKey,
+        learningTaskId,
       );
 
   static bool _listEquals(List<String> left, List<String> right) {

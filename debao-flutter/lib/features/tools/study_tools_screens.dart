@@ -126,18 +126,31 @@ class _ToolEmptyState extends StatelessWidget {
 }
 
 class LearningPlanScreen extends StatelessWidget {
-  const LearningPlanScreen({super.key, this.remoteEnabled = remoteDataDefault});
+  const LearningPlanScreen({
+    super.key,
+    this.remoteEnabled = remoteDataDefault,
+    this.allowManualPlanManagement = false,
+  });
   final bool remoteEnabled;
+
+  /// Private-coach plans are published and changed by the teaching backend.
+  /// Keep this false for the learner-facing screen so it cannot create or
+  /// mutate a plan that should mirror the daily check-in curriculum.
+  final bool allowManualPlanManagement;
 
   @override
   Widget build(BuildContext context) => ProviderScope(
-        child: _LearningPlanBody(remoteEnabled: remoteEnabled),
+        child: _LearningPlanBody(
+            remoteEnabled: remoteEnabled,
+            allowManualPlanManagement: allowManualPlanManagement),
       );
 }
 
 class _LearningPlanBody extends ConsumerStatefulWidget {
-  const _LearningPlanBody({required this.remoteEnabled});
+  const _LearningPlanBody(
+      {required this.remoteEnabled, required this.allowManualPlanManagement});
   final bool remoteEnabled;
+  final bool allowManualPlanManagement;
 
   @override
   ConsumerState<_LearningPlanBody> createState() => _LearningPlanScreenState();
@@ -207,18 +220,23 @@ class _LearningPlanScreenState extends ConsumerState<_LearningPlanBody> {
         return _screen(
             '学习计划',
             _ToolEmptyState(
-                action: KeyedSubtree(
-                  key: const ValueKey('learning-plan-add'),
-                  child: OutlinedButton.icon(
-                    key: const ValueKey('learning-plan-empty-add'),
-                    onPressed: _mutatingPlan ? null : () => _openPlanEditor(),
-                    icon: const Icon(Icons.add, size: 16),
-                    label: const Text('创建计划'),
-                  ),
-                ),
+                action: widget.allowManualPlanManagement
+                    ? KeyedSubtree(
+                        key: const ValueKey('learning-plan-add'),
+                        child: OutlinedButton.icon(
+                          key: const ValueKey('learning-plan-empty-add'),
+                          onPressed:
+                              _mutatingPlan ? null : () => _openPlanEditor(),
+                          icon: const Icon(Icons.add, size: 16),
+                          label: const Text('创建计划'),
+                        ),
+                      )
+                    : null,
                 icon: Icons.event_note_outlined,
                 title: '暂无学习计划',
-                message: '创建一个计划后，今天的任务会显示在这里。'));
+                message: widget.allowManualPlanManagement
+                    ? '创建一个计划后，今天的任务会显示在这里。'
+                    : '后台发布学习计划后，这里会同步显示每日课程和打卡任务。'));
       }
       return _remotePlanBody(planItems, taskItems);
     }
@@ -379,17 +397,18 @@ class _LearningPlanScreenState extends ConsumerState<_LearningPlanBody> {
                               fontSize: 13,
                               fontWeight: FontWeight.w500)),
                       const SizedBox(width: 4),
-                      IconButton(
-                        key: const ValueKey('learning-plan-add'),
-                        tooltip: '创建计划',
-                        onPressed:
-                            _mutatingPlan ? null : () => _openPlanEditor(),
-                        icon: const Icon(Icons.add, color: _brand, size: 20),
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints.tightFor(
-                            width: 32, height: 32),
-                      ),
-                      if (plan != null)
+                      if (widget.allowManualPlanManagement)
+                        IconButton(
+                          key: const ValueKey('learning-plan-add'),
+                          tooltip: '创建计划',
+                          onPressed:
+                              _mutatingPlan ? null : () => _openPlanEditor(),
+                          icon: const Icon(Icons.add, color: _brand, size: 20),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints.tightFor(
+                              width: 32, height: 32),
+                        ),
+                      if (widget.allowManualPlanManagement && plan != null)
                         PopupMenuButton<String>(
                           key: const ValueKey('learning-plan-actions'),
                           tooltip: 'plan-actions',
@@ -458,15 +477,20 @@ class _LearningPlanScreenState extends ConsumerState<_LearningPlanBody> {
                   ])),
           if (planTasks.isEmpty)
             _ToolEmptyState(
-                action: OutlinedButton.icon(
-                  key: const ValueKey('learning-plan-no-task-add'),
-                  onPressed: _mutatingPlan ? null : () => _openPlanEditor(),
-                  icon: const Icon(Icons.add, size: 16),
-                  label: const Text('创建计划'),
-                ),
+                action: widget.allowManualPlanManagement
+                    ? OutlinedButton.icon(
+                        key: const ValueKey('learning-plan-no-task-add'),
+                        onPressed:
+                            _mutatingPlan ? null : () => _openPlanEditor(),
+                        icon: const Icon(Icons.add, size: 16),
+                        label: const Text('创建计划'),
+                      )
+                    : null,
                 icon: Icons.checklist_outlined,
                 title: '暂无待办任务',
-                message: '计划生成任务后会显示在这里。')
+                message: widget.allowManualPlanManagement
+                    ? '计划生成任务后会显示在这里。'
+                    : '后台发布每日课程后，这里会同步显示任务。')
           else
             _planSection(
                 week: plan == null

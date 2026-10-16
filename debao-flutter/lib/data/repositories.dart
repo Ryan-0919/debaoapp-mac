@@ -425,6 +425,11 @@ class QuestionRepository {
           .toList(growable: false);
   Future<List<QuestionRecord>> typedRecords() async =>
       (await recordPage(pageSize: 50)).items;
+  Future<List<QuestionRecord>> learningRecords() async =>
+      _items(await client.getData('/v1/learning/question-records'))
+          .map(QuestionRecord.fromJson)
+          .where((item) => item.id.isNotEmpty)
+          .toList(growable: false);
   Future<JsonMap> recordReport(String submissionId) async => _map(
       await client.getData('/v1/question-submissions/$submissionId/report'));
   Future<JsonMap> submit(String questionId, List<String> answers) async =>
@@ -441,6 +446,7 @@ class QuestionRepository {
     int? limit,
     int? durationSeconds,
     required String idempotencyKey,
+    String? learningTaskId,
   }) async {
     final payload = <String, dynamic>{
       'mode': mode,
@@ -453,6 +459,8 @@ class QuestionRepository {
         'questionIds': questionIds,
       if (limit != null) 'limit': limit,
       if (durationSeconds != null) 'durationSeconds': durationSeconds,
+      if (learningTaskId != null && learningTaskId.isNotEmpty)
+        'learningTaskId': learningTaskId,
     };
     final response = client is HeaderAwareApiTransport
         ? await (client as HeaderAwareApiTransport).postDataWithHeaders(
@@ -493,6 +501,7 @@ class QuestionRepository {
       questionIds: request.questionIds,
       limit: request.limit,
       durationSeconds: request.durationSeconds,
+      learningTaskId: request.learningTaskId,
       idempotencyKey: request.effectiveIdempotencyKey,
     );
   }
@@ -502,11 +511,13 @@ class QuestionRepository {
     if (session.mode != request.mode ||
         session.title != request.title ||
         session.subjectId != request.subjectId ||
-        session.paperId != request.paperId) {
+        session.paperId != request.paperId ||
+        session.learningTaskId != request.learningTaskId) {
       return false;
     }
     if (request.questionType != null &&
-        session.questions.any((item) => item.questionType != request.questionType)) {
+        session.questions
+            .any((item) => item.questionType != request.questionType)) {
       return false;
     }
 
@@ -538,6 +549,7 @@ class QuestionRepository {
     List<String>? questionIds,
     int? limit,
     int? durationSeconds,
+    String? learningTaskId,
     required String idempotencyKey,
   }) =>
       createObjectiveSession(
@@ -548,6 +560,7 @@ class QuestionRepository {
         questionIds: questionIds,
         limit: limit,
         durationSeconds: durationSeconds,
+        learningTaskId: learningTaskId,
         idempotencyKey: idempotencyKey,
       );
 

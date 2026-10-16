@@ -689,6 +689,7 @@ class _ObjectiveAnswerScreenState extends ConsumerState<_ObjectiveAnswerBody>
         limit: widget.limit,
         durationSeconds: widget.durationSeconds,
         sessionId: widget.sessionId,
+        learningTaskId: widget.learningTaskId,
         idempotencyKey: widget.idempotencyKey ?? remoteCreateKey,
       );
       final session = await ref.read(objectiveSessionProvider(request).future);

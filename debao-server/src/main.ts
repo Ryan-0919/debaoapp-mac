@@ -1515,6 +1515,7 @@ function objectiveSessionView(session: ObjectiveSession, includeSolutions = fals
     title: session.title,
     ...(session.subjectId ? {subjectId: session.subjectId} : {}),
     ...(session.paperId ? {paperId: session.paperId} : {}),
+    ...(session.learningTaskId ? {learningTaskId: session.learningTaskId} : {}),
     questionIds: session.questionIds,
     questions: session.questions.map(question => includeSolutions ? question : ({
       id: question.id,
@@ -1996,7 +1997,7 @@ export async function hydrateStore() {
       ...(item.idempotency_key ? {idempotencyKey: item.idempotency_key} : {}),
     };
   });
-  const objectiveSessionRows = await infrastructure.query<any>('select id, user_id, mode, title, subject_id, paper_id, question_ids, questions_snapshot, answers, duration_seconds, started_at, expires_at, status, idempotency_key, create_idempotency_key, submission_idempotency_key, report_id, submitted_at, created_at, updated_at from objective_sessions order by created_at desc');
+  const objectiveSessionRows = await infrastructure.query<any>('select id, user_id, mode, title, subject_id, paper_id, learning_task_id, question_ids, questions_snapshot, answers, duration_seconds, started_at, expires_at, status, idempotency_key, create_idempotency_key, submission_idempotency_key, report_id, submitted_at, created_at, updated_at from objective_sessions order by created_at desc');
   if (objectiveSessionRows) {
     store.objectiveSessions = objectiveSessionRows.rows.map((row: any) => ({
       id: row.id,
@@ -2005,6 +2006,7 @@ export async function hydrateStore() {
       title: row.title,
       subjectId: row.subject_id,
       paperId: row.paper_id,
+      ...(row.learning_task_id ? {learningTaskId: row.learning_task_id} : {}),
       questionIds: row.question_ids ?? [],
       questions: row.questions_snapshot ?? [],
       answers: row.answers ?? [],
@@ -3379,6 +3381,13 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
       const paper = requestedPaperId ? store.papers.find(item => item.id === requestedPaperId && item.status === 'published') : undefined;
       const learningPaper = requestedPaperId ? store.learningAssessmentPapers.find(item => item.id === requestedPaperId && item.status === 'published') : undefined;
       if (requestedPaperId && !paper && !learningPaper) throw new HttpError(404, 'QUESTION_PAPER_NOT_FOUND', '试卷不存在或尚未发布');
+      const requestedLearningTaskId = typeof input.learningTaskId === 'string' && input.learningTaskId.trim() ? input.learningTaskId.trim() : undefined;
+      if (requestedLearningTaskId) {
+        const learningPlanIds = new Set(store.learningPlans.filter(item => item.userId === userId).map(item => item.id));
+        const learningTask = store.learningTasks.find(item => item.id === requestedLearningTaskId && learningPlanIds.has(item.planId));
+        if (!learningTask) throw new HttpError(404, 'LEARNING_TASK_NOT_FOUND', '学习任务不存在或不属于当前用户');
+        if (!['question', 'assessment'].includes(learningTask.contentType ?? '')) throw new HttpError(422, 'LEARNING_TASK_TYPE_INVALID', '当前学习任务不是客观题任务');
+      }
       if (paper?.mode === 'advanced') { const paidProductId = paper.productId; const hasEntitlement = Boolean(paidProductId) && store.orders.some(item => item.userId === userId && item.productId === paidProductId && item.status === 'paid'); if (!paidProductId || !hasEntitlement) throw new HttpError(403, 'ADVANCED_EXAM_REQUIRES_PAYMENT', '进阶考试需要购买指定商品后参加'); }
       const learningBankCandidates = store.learningQuestionBankQuestions.map(learningBankQuestionAsObjective).filter((item): item is Question => Boolean(item));
       let candidates = paper || learningPaper
@@ -3401,9 +3410,9 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
       if (!Number.isInteger(durationSeconds) || durationSeconds < 60 || durationSeconds > 8 * 3600) throw new HttpError(422, 'VALIDATION_ERROR', '答题时长必须在 1 分钟到 8 小时之间');
       const now = new Date().toISOString();
       const questions: ObjectiveQuestionSnapshot[] = candidates.map(item => ({id: item.id, ...(item.subjectId ? {subjectId: item.subjectId} : {}), stem: item.stem, options: item.options, answer: item.answer, ...(item.answerIndexes?.length ? {answerIndexes: [...item.answerIndexes]} : {}), ...(item.questionType ? {questionType: item.questionType} : {}), analysis: item.analysis, ...(item.explanationMediaType ? {explanationMediaType: item.explanationMediaType} : {}), ...(item.explanationMediaReference ? {explanationMediaReference: item.explanationMediaReference} : {}), version: item.version ?? 1, ...(item.source ? {source: item.source} : {})}));
-      const session: ObjectiveSession = {id: `osession-${randomUUID()}`, userId, mode, title: String(input.title ?? (mode === 'exam' ? '客观题考试' : '客观题练习')).trim().slice(0, 200) || '客观题练习', ...(subjectId ? {subjectId} : {}), ...(paper ? {paperId: paper.id} : {}), questionIds: questions.map(item => item.id), questions, answers: [], durationSeconds, startedAt: now, expiresAt: new Date(Date.now() + durationSeconds * 1000).toISOString(), status: 'in_progress', ...(requestedKey ? {createIdempotencyKey: requestedKey} : {}), createdAt: now, updatedAt: now};
+      const session: ObjectiveSession = {id: `osession-${randomUUID()}`, userId, mode, title: String(input.title ?? (mode === 'exam' ? '客观题考试' : '客观题练习')).trim().slice(0, 200) || '客观题练习', ...(subjectId ? {subjectId} : {}), ...(paper ? {paperId: paper.id} : {}), ...(requestedLearningTaskId ? {learningTaskId: requestedLearningTaskId} : {}), questionIds: questions.map(item => item.id), questions, answers: [], durationSeconds, startedAt: now, expiresAt: new Date(Date.now() + durationSeconds * 1000).toISOString(), status: 'in_progress', ...(requestedKey ? {createIdempotencyKey: requestedKey} : {}), createdAt: now, updatedAt: now};
       store.objectiveSessions.unshift(session);
-      await persist('insert into objective_sessions (id, user_id, mode, title, subject_id, paper_id, question_ids, questions_snapshot, answers, duration_seconds, started_at, expires_at, status, idempotency_key, create_idempotency_key, submission_idempotency_key, created_at, updated_at) values ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, $9::jsonb, $10, $11, $12, $13, $14, $14, null, $11, $11)', [session.id, dbUserId(userId), session.mode, session.title, session.subjectId ?? null, session.paperId ?? null, JSON.stringify(session.questionIds), JSON.stringify(session.questions), JSON.stringify(session.answers), session.durationSeconds, session.startedAt, session.expiresAt, session.status, session.createIdempotencyKey ?? null]);
+      await persist('insert into objective_sessions (id, user_id, mode, title, subject_id, paper_id, learning_task_id, question_ids, questions_snapshot, answers, duration_seconds, started_at, expires_at, status, idempotency_key, create_idempotency_key, submission_idempotency_key, created_at, updated_at) values ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9::jsonb, $10::jsonb, $11, $12, $13, $14, $15, $15, null, $12, $12)', [session.id, dbUserId(userId), session.mode, session.title, session.subjectId ?? null, session.paperId ?? null, session.learningTaskId ?? null, JSON.stringify(session.questionIds), JSON.stringify(session.questions), JSON.stringify(session.answers), session.durationSeconds, session.startedAt, session.expiresAt, session.status, session.createIdempotencyKey ?? null]);
       return send(res, 201, objectiveSessionView(session), requestId);
     }
     if (req.method === 'GET' && path === '/v1/question-sessions') {
@@ -3593,6 +3602,34 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
         answered,
         correct,
       }, requestId);
+    }
+    if (req.method === 'GET' && path === '/v1/learning/question-records') {
+      const userId = requireAuth(req);
+      const userLearningTasks = store.learningTasks.filter(task =>
+        store.learningPlans.some(plan => plan.id === task.planId && plan.userId === userId));
+      const learningSessionIds = new Set(store.objectiveSessions
+        .filter(item => item.userId === userId && (item.learningTaskId || userLearningTasks.some(task =>
+          task.contentType === 'assessment'
+            ? task.contentId === item.paperId
+            : task.contentType === 'question' && Boolean(task.contentId) && item.questionIds.includes(task.contentId!))))
+        .map(item => item.id));
+      const records = store.objectiveReports
+        .filter(report => report.userId === userId && learningSessionIds.has(report.sessionId))
+        .sort((left, right) => Date.parse(right.submittedAt) - Date.parse(left.submittedAt))
+        .flatMap(report => report.results.map((result, index) => ({
+          id: `${report.id}:${result.questionId}:${index}`,
+          questionId: result.questionId,
+          answers: result.answers,
+          correct: result.correct,
+          createdAt: report.submittedAt,
+          analysis: result.analysis,
+          ...(result.subjectId ? {subjectId: result.subjectId} : {}),
+          mode: report.mode,
+          title: report.title,
+          total: 1,
+          correctCount: result.correct ? 1 : 0,
+        })));
+      return send(res, 200, records, requestId);
     }
     const reportMatch = path.match(/^\/v1\/question-submissions\/([^/]+)\/report$/);
     if (reportMatch && req.method === 'GET') {
@@ -3853,6 +3890,9 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
     if (req.method === 'GET' && path === '/v1/learning/plans') { const userId = requireAuth(req); const attempt = store.learningDiagnosticAttempts.find(item => item.userId === userId); const assignment = attempt ? store.learningTeacherAssignments.find(item => item.attemptId === attempt.id) : undefined; await ensureAutoLearningPlan(userId, assignment?.classTypeId, assignment?.stageId); return send(res, 200, store.learningPlans.filter(item => item.userId === userId), requestId); }
     if (req.method === 'POST' && path === '/v1/learning/plans') {
       const userId = requireAuth(req);
+      if (config.nodeEnv === 'production' && hasLearningCoachAccess(userId)) {
+        throw new HttpError(403, 'LEARNING_PLAN_MANAGED_BY_BACKEND', '得恩私教学习计划由后台同步管理，用户不能手动创建');
+      }
       const input = await body(req);
       const title = String(input.title ?? '').trim();
       if (!title || title.length > 160) throw new HttpError(422, 'VALIDATION_ERROR', '计划标题不能为空且不能超过 160 个字符');
@@ -3869,6 +3909,9 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
     const planMatch = path.match(/^\/v1\/learning\/plans\/([^/]+)$/);
     if (planMatch && req.method === 'PATCH') {
       const userId = requireAuth(req);
+      if (config.nodeEnv === 'production' && hasLearningCoachAccess(userId)) {
+        throw new HttpError(403, 'LEARNING_PLAN_MANAGED_BY_BACKEND', '得恩私教学习计划由后台同步管理，用户不能手动修改');
+      }
       const plan = store.learningPlans.find(item => item.id === planMatch[1] && item.userId === userId);
       if (!plan) throw new HttpError(404, 'NOT_FOUND', '学习计划不存在');
       const input = await body(req);
@@ -3888,6 +3931,9 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
     }
     if (planMatch && req.method === 'DELETE') {
       const userId = requireAuth(req);
+      if (config.nodeEnv === 'production' && hasLearningCoachAccess(userId)) {
+        throw new HttpError(403, 'LEARNING_PLAN_MANAGED_BY_BACKEND', '得恩私教学习计划由后台同步管理，用户不能手动删除');
+      }
       const plan = store.learningPlans.find(item => item.id === planMatch[1] && item.userId === userId);
       if (!plan) throw new HttpError(404, 'NOT_FOUND', '学习计划不存在');
       store.learningPlans = store.learningPlans.filter(item => item !== plan);
@@ -4066,7 +4112,28 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
     if (req.method === 'GET' && path === '/v1/learning/report') {
       const userId = requireAuth(req); const period = url.searchParams.get('period') ?? 'week'; const {start, end} = reportWindow(period);
       const startMs = start.getTime(); const endMs = end.getTime(); const inWindow = (value: string | undefined) => { const parsed = value ? Date.parse(value) : NaN; return Number.isFinite(parsed) && parsed >= startMs && parsed <= endMs; };
-      const submissions = store.submissions.filter(item => item.userId === userId && inWindow(item.createdAt)); const correct = submissions.filter(item => item.correct).length;
+      const userLearningTasks = store.learningTasks.filter(task =>
+        store.learningPlans.some(plan => plan.id === task.planId && plan.userId === userId));
+      const learningSessionIds = new Set(store.objectiveSessions
+        .filter(item => item.userId === userId && (item.learningTaskId || userLearningTasks.some(task =>
+          task.contentType === 'assessment'
+            ? task.contentId === item.paperId
+            : task.contentType === 'question' && Boolean(task.contentId) && item.questionIds.includes(task.contentId!))))
+        .map(item => item.id));
+      const learningReports = store.objectiveReports
+        .filter(item => item.userId === userId && learningSessionIds.has(item.sessionId) && inWindow(item.submittedAt));
+      // Development fixtures predate the task/session association. Keep their
+      // report contract useful without weakening production's strict scope.
+      const fixtureFallback = process.env.DEBAO_TEST_FIXTURES === 'true' && learningSessionIds.size === 0;
+      const submissions = fixtureFallback
+          ? store.submissions.filter(item => item.userId === userId && inWindow(item.createdAt))
+          : learningReports.flatMap(report => report.results.map(result => ({
+              questionId: result.questionId,
+              correct: result.correct,
+              createdAt: report.submittedAt,
+              questionSnapshot: {subjectId: result.subjectId},
+            })));
+      const correct = submissions.filter(item => item.correct).length;
       const activities = store.learningActivities.filter(item => item.userId === userId && inWindow(item.occurredAt));
       const activityDurationSeconds = activities.reduce((sum, item) => sum + item.durationSeconds, 0);
       const activityQuantity = activities.reduce((sum, item) => sum + item.quantity, 0);
@@ -4077,8 +4144,8 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
       const subjectSeconds = new Map<string, number>(); for (const activity of activities) if (activity.subjectId) subjectSeconds.set(activity.subjectId, (subjectSeconds.get(activity.subjectId) ?? 0) + activity.durationSeconds);
       const subjectMinutes = new Map([...subjectSeconds.entries()].map(([id, seconds]) => [id, Math.floor(seconds / 60)]));
       const subjectStats = store.subjects.map(subject => { const items = submissions.filter(item => { const question = item.questionSnapshot ?? store.questions.find(candidate => candidate.id === item.questionId); return question?.subjectId === subject.id; }); const subjectCorrect = items.filter(item => item.correct).length; return {subjectId: subject.id, subjectName: subject.name, minutes: subjectMinutes.get(subject.id) ?? 0, answered: items.length, correctRate: items.length ? Math.round(subjectCorrect / items.length * 100) : 0}; });
-      const assessmentReports = store.objectiveReports
-        .filter(item => item.userId === userId && item.mode === 'exam' && inWindow(item.submittedAt))
+      const assessmentReports = (fixtureFallback ? store.objectiveReports.filter(item => item.userId === userId && inWindow(item.submittedAt)) : learningReports)
+        .filter(item => item.mode === 'exam')
         .sort((left, right) => Date.parse(right.submittedAt) - Date.parse(left.submittedAt));
       const weakPointMap = new Map<string, {label: string; subjectId?: string; wrongCount: number; attempts: number; correct: number}>();
       for (const report of assessmentReports) {

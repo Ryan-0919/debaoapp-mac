@@ -74,6 +74,8 @@ final questionRecordPageProvider =
 );
 final typedQuestionRecordsProvider = FutureProvider<List<QuestionRecord>>(
     (ref) => ref.watch(questionRepositoryProvider).typedRecords());
+final learningQuestionRecordsProvider = FutureProvider<List<QuestionRecord>>(
+    (ref) => ref.watch(questionRepositoryProvider).learningRecords());
 final questionRecordReportProvider = FutureProvider.family<JsonMap, String>(
     (ref, submissionId) =>
         ref.watch(questionRepositoryProvider).recordReport(submissionId));

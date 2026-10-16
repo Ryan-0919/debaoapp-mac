@@ -504,11 +504,10 @@ class _Group extends StatelessWidget {
                       Icons.support_agent_outlined => null,
                       Icons.settings_outlined =>
                         SettingsScreen(remoteEnabled: remoteEnabled),
-                      Icons.play_circle_outline =>
-                        CoursesScreen(
-                            remoteEnabled: remoteEnabled,
-                            coursePage: true,
-                            showBackButton: true),
+                      Icons.play_circle_outline => CoursesScreen(
+                          remoteEnabled: remoteEnabled,
+                          coursePage: true,
+                          showBackButton: true),
                       _ => null,
                     };
                     if (tool != null) {
@@ -583,7 +582,7 @@ class _PrivateCoachOverviewState
     final plans = ref.watch(learningPlansProvider);
     final tasks = ref.watch(learningTasksProvider);
     final report = ref.watch(learningReportProvider('month'));
-    final records = ref.watch(typedQuestionRecordsProvider);
+    final records = ref.watch(learningQuestionRecordsProvider);
     final inquiries = ref.watch(learningInquiriesProvider);
     final orders = ref.watch(ordersProvider);
     final loading = [plans, tasks, report, records, inquiries, orders];
@@ -602,7 +601,8 @@ class _PrivateCoachOverviewState
       };
       final details = failedItems.entries
           .where((entry) => entry.value.hasError && !entry.value.hasValue)
-          .map((entry) => '${entry.key}：${_privateCoachError(entry.value.error!)}')
+          .map((entry) =>
+              '${entry.key}：${_privateCoachError(entry.value.error!)}')
           .join('\n');
       return Scaffold(
         appBar: AppBar(title: const Text('得恩私教学习中心')),
@@ -626,7 +626,7 @@ class _PrivateCoachOverviewState
                 ref.invalidate(learningPlansProvider);
                 ref.invalidate(learningTasksProvider);
                 ref.invalidate(learningReportProvider('month'));
-                ref.invalidate(typedQuestionRecordsProvider);
+                ref.invalidate(learningQuestionRecordsProvider);
                 ref.invalidate(learningInquiriesProvider);
                 ref.invalidate(ordersProvider);
               },
@@ -840,7 +840,8 @@ class _PrivateCoachEmpty extends StatelessWidget {
   Widget build(BuildContext context) => Scaffold(
         backgroundColor: DebaoColors.page,
         appBar: AppBar(
-          leading: const DebaoRouteBackButton(fallbackLocation: '/?tab=profile'),
+          leading:
+              const DebaoRouteBackButton(fallbackLocation: '/?tab=profile'),
           title: const Text('得恩私教学习中心'),
           backgroundColor: DebaoColors.page,
         ),
