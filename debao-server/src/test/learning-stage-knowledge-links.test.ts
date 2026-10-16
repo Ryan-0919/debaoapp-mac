@@ -53,6 +53,19 @@ test('empty matching pool never creates an unscoped question task', async () => 
   assert.equal(questions.length, 0, 'A question without contentId opens unrestricted practice in the App');
 }));
 
+test('automatic cards use published cards matching the stage knowledge points', async () => isolated(async base => {
+  curriculum();
+  const now = new Date().toISOString();
+  store.learningCards.push(
+    {id: 'matching-card', title: '匹配考点卡片', contentType: 'image_gallery', assets: [], recallItems: [], knowledgePointIds: [subPoint], sortOrder: 2, status: 'published', version: 1, createdAt: now, updatedAt: now, publishedAt: now},
+    {id: 'outside-card', title: '无关考点卡片', contentType: 'image_gallery', assets: [], recallItems: [], knowledgePointIds: ['other-point'], sortOrder: 3, status: 'published', version: 1, createdAt: now, updatedAt: now, publishedAt: now},
+  );
+  store.learningStagePlanItems[1] = {...store.learningStagePlanItems[1], contentId: undefined};
+  const tasks = await preview(base);
+  const cards = tasks.filter(task => task.contentType === 'card');
+  assert.deepEqual(cards.map(task => task.contentId), ['matching-card']);
+}));
+
 test('publish rejects a mixture of taught and untaught points', async () => isolated(async base => {
   curriculum();
   store.learningStagePlanItems[2].knowledgePointIds = [coursePoint, 'untaught'];

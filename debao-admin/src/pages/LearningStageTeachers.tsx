@@ -2,7 +2,7 @@ import {DeleteOutlined, EditOutlined, PlusOutlined} from '@ant-design/icons';
 import {Button, Card, Drawer, Form, Input, InputNumber, Popconfirm, Space, Table, Tag, Typography, message} from 'antd';
 import {useCallback, useEffect, useState} from 'react';
 import {useParams} from 'react-router-dom';
-import {createLearningTeacher, deleteLearningTeacher, getLearningStageTeachers, updateLearningTeacher, type AdminLearningStage, type AdminLearningTeacher} from '@/services/api';
+import {createLearningStageTeacher, deleteLearningTeacher, getLearningStageTeachers, updateLearningTeacher, type AdminLearningStage, type AdminLearningTeacher} from '@/services/api';
 
 type Values = Pick<AdminLearningTeacher, 'name' | 'subject' | 'specialty' | 'sortOrder'>;
 
@@ -15,7 +15,7 @@ export default function LearningStageTeachers() {
   const [form] = Form.useForm<Values>();
   const load = useCallback(async () => { try { const result = await getLearningStageTeachers(stageId); setStage(result.stage); setItems(result.items); } catch (error) { message.error(error instanceof Error ? error.message : '师资加载失败'); } }, [stageId]);
   useEffect(() => { void load(); }, [load]);
-  const save = async (values: Values) => { try { if (editing) await updateLearningTeacher(editing.id, values); else await createLearningTeacher(stageId, values); message.success(editing ? '师资已更新' : '师资已创建'); setOpen(false); setEditing(null); form.resetFields(); await load(); } catch (error) { message.error(error instanceof Error ? error.message : '保存失败'); } };
+  const save = async (values: Values) => { try { if (editing) await updateLearningTeacher(editing.id, values); else await createLearningStageTeacher(stageId, values); message.success(editing ? '师资已更新' : '师资已创建'); setOpen(false); setEditing(null); form.resetFields(); await load(); } catch (error) { message.error(error instanceof Error ? error.message : '保存失败'); } };
   const remove = async (teacher: AdminLearningTeacher) => { try { await deleteLearningTeacher(teacher.id); message.success('师资已删除'); await load(); } catch (error) { message.error(error instanceof Error ? error.message : '删除失败'); } };
   return <Space direction="vertical" size={20} style={{display: 'flex'}}>
     <div><Typography.Title level={3} style={{margin: 0}}>{stage?.name ?? '阶段'} · 师资</Typography.Title><Typography.Paragraph type="secondary" style={{margin: '6px 0 0'}}>这里只维护当前阶段的老师，不会混入其他阶段的师资。</Typography.Paragraph></div>

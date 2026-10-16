@@ -574,6 +574,7 @@ export interface AdminLearningStage {
   name: string;
   description?: string;
   conditions: AdminLearningStageCondition[];
+  teacherIds?: string[];
   sortOrder: number;
   status: "active" | "disabled";
   teacherCount?: number;
@@ -656,7 +657,7 @@ export interface AdminLearningStageWeeklyPreview {
 }
 export interface AdminLearningTeacher {
   id: string;
-  stageId: string;
+  stageId?: string;
   name: string;
   subject: string;
   specialty: string;
@@ -752,6 +753,7 @@ export interface AdminLearningCard {
   contentType: "image_gallery" | "html" | "pdf";
   assets: AdminLearningCardAsset[];
   recallItems: AdminLearningCardRecallItem[];
+  knowledgePointIds: string[];
   sortOrder: number;
   status: "draft" | "published" | "disabled";
   version: number;
@@ -761,7 +763,13 @@ export interface AdminLearningCard {
 }
 export type AdminLearningCardInput = Pick<
   AdminLearningCard,
-  "title" | "description" | "contentType" | "assets" | "recallItems" | "sortOrder"
+  | "title"
+  | "description"
+  | "contentType"
+  | "assets"
+  | "recallItems"
+  | "knowledgePointIds"
+  | "sortOrder"
 >;
 export interface AdminLearningQuestionTaxonomy {
   subjects: string[];
@@ -1068,7 +1076,7 @@ export function getLearningStages(classTypeId?: string) {
 export function createLearningStage(
   input: Pick<
     AdminLearningStage,
-    "classTypeId" | "code" | "name" | "description" | "conditions" | "sortOrder"
+    "classTypeId" | "code" | "name" | "description" | "conditions" | "sortOrder" | "teacherIds"
   >,
 ) {
   return request<AdminLearningStage>("/v1/admin/learning-coach/stages", {
@@ -1081,7 +1089,7 @@ export function updateLearningStage(
   input: Partial<
     Pick<
       AdminLearningStage,
-      "name" | "description" | "conditions" | "sortOrder" | "status"
+      "name" | "description" | "conditions" | "sortOrder" | "status" | "teacherIds"
     >
   >,
 ) {
@@ -1140,7 +1148,17 @@ export function getLearningStageTeachers(stageId: string) {
     total: number;
   }>(`/v1/admin/learning-coach/stages/${encodeURIComponent(stageId)}/teachers`);
 }
-export function createLearningTeacher(
+export function getLearningTeachers(input?: {subject?: string; status?: AdminLearningTeacher["status"]}) {
+  const query = new URLSearchParams();
+  if (input?.subject) query.set("subject", input.subject);
+  if (input?.status) query.set("status", input.status);
+  const suffix = query.toString() ? `?${query.toString()}` : "";
+  return request<{items: AdminLearningTeacher[]; total: number; subjects: string[]}>(`/v1/admin/learning-coach/teachers${suffix}`);
+}
+export function createLearningTeacher(input: Pick<AdminLearningTeacher, "name" | "subject" | "specialty" | "sortOrder">) {
+  return request<AdminLearningTeacher>("/v1/admin/learning-coach/teachers", {method: "POST", body: JSON.stringify(input)});
+}
+export function createLearningStageTeacher(
   stageId: string,
   input: Pick<
     AdminLearningTeacher,

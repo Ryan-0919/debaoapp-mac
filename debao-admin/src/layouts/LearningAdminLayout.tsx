@@ -72,6 +72,8 @@ export default function LearningAdminLayout() {
                   ? "/learning-admin/question-bank/objective/subjects"
                   : location.pathname.startsWith("/learning-admin/inquiries")
                     ? "/learning-admin/inquiries"
+                  : location.pathname.startsWith("/learning-admin/teachers")
+                    ? "/learning-admin/teachers"
                   : location.pathname.startsWith("/learning-admin/cards")
                     ? "/learning-admin/cards"
                     : "/learning-admin/classes",
@@ -133,7 +135,10 @@ export default function LearningAdminLayout() {
               key: "/learning-admin/class-management",
               icon: <TeamOutlined />,
               label: "班型与师资",
-              children: [{ key: "/learning-admin/classes", label: "班型管理" }],
+              children: [
+                { key: "/learning-admin/classes", label: "班型管理" },
+                { key: "/learning-admin/teachers", label: "师资表" },
+              ],
             },
           ]}
           onClick={({ key }) => navigate(key)}

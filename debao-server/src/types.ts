@@ -276,6 +276,8 @@ export interface LearningCard {
   contentType: LearningCardContentType;
   assets: LearningCardAsset[];
   recallItems: LearningCardRecallItem[];
+  /** Objective taxonomy point/subpoint IDs covered by this card. */
+  knowledgePointIds?: string[];
   sortOrder: number;
   status: LearningCardStatus;
   version: number;
@@ -328,6 +330,8 @@ export interface LearningStage {
   name: string;
   description?: string;
   conditions: LearningStageCondition[];
+  /** IDs selected from the global teacher directory for this stage. */
+  teacherIds?: string[];
   sortOrder: number;
   status: LearningStageStatus;
   createdAt: string;
@@ -336,7 +340,7 @@ export interface LearningStage {
 
 export interface LearningTeacher {
   id: string;
-  stageId: string;
+  stageId?: string;
   name: string;
   subject: string;
   specialty: string;

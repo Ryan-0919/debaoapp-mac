@@ -1499,12 +1499,14 @@ class LearningCard {
       required this.assets,
       this.version = 1,
       this.recallItems = const [],
+      this.knowledgePointIds = const [],
       this.description});
   final String id;
   final String title;
   final String contentType;
   final List<({String type, String reference, String? filename})> assets;
   final List<({String prompt, String answer})> recallItems;
+  final List<String> knowledgePointIds;
   final int version;
   final String? description;
   factory LearningCard.fromJson(JsonMap json) => LearningCard(
@@ -1519,6 +1521,10 @@ class LearningCard {
                 answer: '${item['answer'] ?? ''}'
               ))
           .toList(growable: false),
+      knowledgePointIds:
+          (json['knowledgePointIds'] as List<dynamic>? ?? const [])
+              .map((item) => '$item')
+              .toList(growable: false),
       version: (json['version'] as num?)?.toInt() ?? 1,
       assets: (json['assets'] as List<dynamic>? ?? const [])
           .whereType<JsonMap>()

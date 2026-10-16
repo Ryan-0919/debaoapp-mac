@@ -111,6 +111,7 @@ export default defineConfig({
           path: "/learning-admin/classes/:classTypeId/stages/:stageId/plan",
           component: "@/pages/LearningStagePlan",
         },
+        { path: "/learning-admin/teachers", component: "@/pages/LearningTeachers" },
         { path: "/learning-admin/stages", redirect: "/learning-admin/classes" },
         {
           path: "/learning-admin/stages/:stageId/teachers",

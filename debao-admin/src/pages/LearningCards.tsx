@@ -38,6 +38,7 @@ import {
   createLearningCard,
   deleteLearningCard,
   disableLearningCard,
+  getLearningQuestionTaxonomy,
   getLearningCards,
   publishLearningCard,
   updateLearningCard,
@@ -45,6 +46,7 @@ import {
   type AdminLearningCard,
   type AdminLearningCardAsset,
   type AdminLearningCardInput,
+  type AdminLearningTaxonomyNode,
 } from "@/services/api";
 
 type CardForm = Omit<AdminLearningCardInput, "assets">;
@@ -77,14 +79,19 @@ export default function LearningCards() {
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [preview, setPreview] = useState<AdminLearningCard>();
+  const [taxonomyNodes, setTaxonomyNodes] = useState<AdminLearningTaxonomyNode[]>([]);
   const watchedType = Form.useWatch("contentType", form) ?? "image_gallery";
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const result = await getLearningCards({ keyword, status, contentType });
+      const [result, taxonomy] = await Promise.all([
+        getLearningCards({ keyword, status, contentType }),
+        getLearningQuestionTaxonomy({ category: "objective" }),
+      ]);
       setItems(result.items);
       setStats(result.stats);
+      setTaxonomyNodes(taxonomy.items);
     } catch (error) {
       message.error(
         error instanceof Error ? error.message : "卡片列表加载失败",
@@ -104,6 +111,7 @@ export default function LearningCards() {
       contentType: "image_gallery",
       sortOrder: (stats.total + 1) * 10,
       recallItems: [],
+      knowledgePointIds: [],
     });
     setDrawerOpen(true);
   };
@@ -117,6 +125,7 @@ export default function LearningCards() {
       contentType: item.contentType,
       sortOrder: item.sortOrder,
       recallItems: item.recallItems ?? [],
+      knowledgePointIds: item.knowledgePointIds ?? [],
     });
     setDrawerOpen(true);
   };
@@ -228,7 +237,7 @@ export default function LearningCards() {
             卡片管理
           </Typography.Title>
           <Typography.Text type="secondary">
-            管理单图、多图和 HTML 学习卡片，后续可编排进学习阶段与每日计划。
+            管理图片、HTML 和 PDF 学习卡片，并绑定考点后自动编排进学习计划。
           </Typography.Text>
         </div>
         <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
@@ -366,8 +375,15 @@ export default function LearningCards() {
                       >
                         {item.contentType === "html"
                           ? "HTML"
-                          : `${item.assets.length} 张图片`}
+                          : item.contentType === "pdf"
+                            ? "PDF"
+                            : `${item.assets.length} 张图片`}
                       </Tag>
+                      {item.knowledgePointIds?.length ? (
+                        <Tag color="geekblue">已绑 {item.knowledgePointIds.length} 个考点</Tag>
+                      ) : (
+                        <Tag color="warning">未绑考点</Tag>
+                      )}
                       <Typography.Text type="secondary">
                         排序 {item.sortOrder}
                       </Typography.Text>
@@ -490,6 +506,26 @@ export default function LearningCards() {
               showCount
               maxLength={1000}
               placeholder="说明这张卡片适合谁、解决什么问题"
+            />
+          </Form.Item>
+          <Form.Item
+            name="knowledgePointIds"
+            label="关联考点 / 知识点"
+            rules={[{ required: true, type: "array", min: 1, message: "请至少关联一个考点或知识点" }]}
+            tooltip="用户完成前置课程后，系统会按这些考点自动调用已发布卡片。"
+          >
+            <Select
+              mode="multiple"
+              allowClear
+              showSearch
+              optionFilterProp="label"
+              options={taxonomyNodes
+                .filter((node) => node.type === "point" || node.type === "subpoint")
+                .map((node) => ({
+                  value: node.id,
+                  label: node.type === "subpoint" ? `↳ ${node.name}` : node.name,
+                }))}
+              placeholder="选择这张卡片覆盖的考点或知识点"
             />
           </Form.Item>
           <Form.List name="recallItems">
@@ -673,7 +709,7 @@ export default function LearningCards() {
                     <Typography.Text type="secondary">
                       {asset.type === "image"
                         ? `第 ${index + 1} 张`
-                        : "HTML 文件"}{" "}
+                        : asset.type === "pdf" ? "PDF 文件" : "HTML 文件"}{" "}
                       · {formatBytes(asset.sizeBytes)}
                     </Typography.Text>
                   </div>

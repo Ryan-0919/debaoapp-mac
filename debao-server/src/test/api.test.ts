@@ -158,7 +158,7 @@ test('learning admin uploads and manages image and HTML cards', async () => with
     const second = await upload('image/jpeg', '第二页.jpg', Uint8Array.from([255, 216, 255, 217]));
     const html = await upload('text/html', '知识卡.html', new TextEncoder().encode('<!doctype html><title>知识卡</title><h1>合同解除</h1><script>window.top.hacked=true</script>'));
     const htmlPreview = await fetch(`${base}${html.reference}`); assert.equal(htmlPreview.status, 200); assert.match(htmlPreview.headers.get('content-security-policy') ?? '', /sandbox/);
-    const created = await fetch(`${base}/v1/admin/learning-cards`, {method: 'POST', headers: {'content-type': 'application/json', cookie, 'x-csrf-token': csrf}, body: JSON.stringify({title: '民法图解卡', description: '两页图片', contentType: 'image_gallery', assets: [first, second], sortOrder: 10})});
+    const created = await fetch(`${base}/v1/admin/learning-cards`, {method: 'POST', headers: {'content-type': 'application/json', cookie, 'x-csrf-token': csrf}, body: JSON.stringify({title: '民法图解卡', description: '两页图片', contentType: 'image_gallery', assets: [first, second], knowledgePointIds: ['objective-point-civil-act-effect'], sortOrder: 10})});
     assert.equal(created.status, 201); const createdJson = await created.json() as any; cardIds.push(createdJson.data.id); assert.equal(createdJson.data.assets.length, 2); assert.equal(createdJson.data.status, 'draft');
     const recallUrl = `${base}/v1/admin/learning-cards/${createdJson.data.id}`;
     const recallHeaders = {'content-type': 'application/json', cookie, 'x-csrf-token': csrf};
