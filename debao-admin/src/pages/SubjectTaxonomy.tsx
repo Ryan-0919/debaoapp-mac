@@ -1,10 +1,12 @@
-import {ArrowLeftOutlined, EditOutlined, PlusOutlined, ReloadOutlined} from '@ant-design/icons';
-import {Alert, Button, Empty, Form, Input, List, Modal, Skeleton, Space, Table, Tag, Typography, message} from 'antd';
+import {ArrowLeftOutlined, DeleteOutlined, EditOutlined, PlusOutlined, ReloadOutlined} from '@ant-design/icons';
+import {Alert, Button, Empty, Form, Input, List, Modal, Popconfirm, Skeleton, Space, Table, Tag, Typography, message} from 'antd';
 import {useCallback, useEffect, useMemo, useState} from 'react';
 import {useNavigate, useParams, useSearchParams} from 'react-router-dom';
 import {
   createAdminChapter,
   createAdminPoint,
+  deleteAdminChapter,
+  deleteAdminPoint,
   getAdminSubjects,
   updateAdminChapter,
   updateAdminPoint,
@@ -101,6 +103,27 @@ export default function SubjectTaxonomy() {
     if (!selectedChapter) return;
     form.setFieldsValue({name: point.name});
     setDialog({kind: 'editPoint', chapterId: selectedChapter.id, item: point});
+  };
+
+  const removeChapter = async (chapter: Chapter) => {
+    try {
+      await deleteAdminChapter(subjectId, chapter.id);
+      message.success('章节已删除');
+      await load();
+    } catch (cause) {
+      message.error(cause instanceof Error ? cause.message : '删除章节失败');
+    }
+  };
+
+  const removePoint = async (point: Point) => {
+    if (!selectedChapter) return;
+    try {
+      await deleteAdminPoint(subjectId, selectedChapter.id, point.id);
+      message.success('考点已删除');
+      await load();
+    } catch (cause) {
+      message.error(cause instanceof Error ? cause.message : '删除考点失败');
+    }
   };
 
   const save = async ({name}: {name: string}) => {
@@ -216,6 +239,24 @@ export default function SubjectTaxonomy() {
                       icon={<EditOutlined />}
                       onClick={event => { event.stopPropagation(); openEditChapter(chapter); }}
                     />,
+                    <Popconfirm
+                      key="delete"
+                      title={`确定删除“${chapter.name}”？`}
+                      description="章节下不能有已关联题目。"
+                      okText="删除"
+                      cancelText="取消"
+                      okButtonProps={{danger: true}}
+                      onConfirm={() => void removeChapter(chapter)}
+                    >
+                      <Button
+                        type="text"
+                        danger
+                        size="small"
+                        aria-label={`删除${chapter.name}`}
+                        icon={<DeleteOutlined />}
+                        onClick={event => event.stopPropagation()}
+                      />
+                    </Popconfirm>,
                   ]}
                 >
                   <List.Item.Meta
@@ -249,7 +290,18 @@ export default function SubjectTaxonomy() {
                 title: '操作',
                 width: 100,
                 render: (_: unknown, point: Point) => (
-                  <Button type="link" icon={<EditOutlined />} onClick={() => openEditPoint(point)}>编辑</Button>
+                  <Space size={0}>
+                    <Button type="link" icon={<EditOutlined />} onClick={() => openEditPoint(point)}>编辑</Button>
+                    <Popconfirm
+                      title={`确定删除“${point.name}”？`}
+                      okText="删除"
+                      cancelText="取消"
+                      okButtonProps={{danger: true}}
+                      onConfirm={() => void removePoint(point)}
+                    >
+                      <Button type="link" danger icon={<DeleteOutlined />}>删除</Button>
+                    </Popconfirm>
+                  </Space>
                 ),
               },
             ]}

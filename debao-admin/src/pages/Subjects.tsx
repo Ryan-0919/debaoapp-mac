@@ -1,8 +1,8 @@
-import {EditOutlined, EyeOutlined, ReloadOutlined} from '@ant-design/icons';
-import {Button, Empty, Form, Input, Modal, Space, Table, Tabs, Tag, Typography, message} from 'antd';
+import {DeleteOutlined, EditOutlined, EyeOutlined, ReloadOutlined} from '@ant-design/icons';
+import {Button, Empty, Form, Input, Modal, Popconfirm, Space, Table, Tabs, Tag, Typography, message} from 'antd';
 import {useCallback, useEffect, useState} from 'react';
 import {useNavigate, useSearchParams} from 'react-router-dom';
-import {createAdminSubject, getAdminSubjects, updateAdminSubject, type AdminSubject} from '@/services/api';
+import {createAdminSubject, deleteAdminSubject, getAdminSubjects, updateAdminSubject, type AdminSubject} from '@/services/api';
 
 type QuestionCategory = 'objective' | 'subjective';
 
@@ -54,6 +54,16 @@ export default function Subjects() {
       await load();
     } catch (error) {
       message.error(error instanceof Error ? error.message : '保存失败');
+    }
+  };
+
+  const removeSubject = async (subject: AdminSubject) => {
+    try {
+      await deleteAdminSubject(subject.id);
+      message.success('科目已删除');
+      await load();
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '删除失败');
     }
   };
 
@@ -111,6 +121,9 @@ export default function Subjects() {
                 查看章节与考点
               </Button>
               <Button type="link" icon={<EditOutlined />} onClick={() => openEdit(subject)}>编辑名称</Button>
+              <Popconfirm title={`确定删除“${subject.name}”？`} description="只有没有关联题目的科目才能删除。" okText="删除" cancelText="取消" okButtonProps={{danger: true}} onConfirm={() => void removeSubject(subject)}>
+                <Button type="link" danger icon={<DeleteOutlined />}>删除</Button>
+              </Popconfirm>
             </Space>
           ),
         },

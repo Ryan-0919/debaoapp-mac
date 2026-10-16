@@ -1599,6 +1599,12 @@ export function updateAdminSubject(
     { method: "PATCH", body: JSON.stringify(input) },
   );
 }
+export function deleteAdminSubject(id: string) {
+  return request<{deleted: boolean; id: string}>(
+    `/v1/admin/content/subjects/${encodeURIComponent(id)}`,
+    {method: "DELETE"},
+  );
+}
 export function createAdminChapter(
   subjectId: string,
   input: { name: string; questionType?: "objective" | "subjective" | "both" },
@@ -1616,6 +1622,12 @@ export function updateAdminChapter(
   return request<AdminSubject>(
     `/v1/admin/content/subjects/${encodeURIComponent(subjectId)}/chapters/${encodeURIComponent(chapterId)}`,
     { method: "PATCH", body: JSON.stringify(input) },
+  );
+}
+export function deleteAdminChapter(subjectId: string, chapterId: string) {
+  return request<{deleted: boolean; id: string}>(
+    `/v1/admin/content/subjects/${encodeURIComponent(subjectId)}/chapters/${encodeURIComponent(chapterId)}`,
+    {method: "DELETE"},
   );
 }
 export function createAdminPoint(
@@ -1637,6 +1649,12 @@ export function updateAdminPoint(
   return request<AdminSubject>(
     `/v1/admin/content/subjects/${encodeURIComponent(subjectId)}/chapters/${encodeURIComponent(chapterId)}/points/${encodeURIComponent(pointId)}`,
     { method: "PATCH", body: JSON.stringify(input) },
+  );
+}
+export function deleteAdminPoint(subjectId: string, chapterId: string, pointId: string) {
+  return request<{deleted: boolean; id: string}>(
+    `/v1/admin/content/subjects/${encodeURIComponent(subjectId)}/chapters/${encodeURIComponent(chapterId)}/points/${encodeURIComponent(pointId)}`,
+    {method: "DELETE"},
   );
 }
 

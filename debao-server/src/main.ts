@@ -4653,14 +4653,53 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
       return send(res, 201, subject, requestId);
     }
     const adminSubjectMatch = path.match(/^\/v1\/admin\/content\/subjects\/([^/]+)$/);
+    if (adminSubjectMatch && req.method === 'DELETE') {
+      const admin = requireAdmin(req, 'content.questions.write');
+      const subject = adminSubjectCatalog.find(item => item.id === adminSubjectMatch[1]);
+      if (!subject) throw new HttpError(404, 'NOT_FOUND', '科目不存在');
+      const objectiveCount = store.questions.filter(question => question.subjectId === subject.id).length;
+      const subjectiveCount = store.gradingRubrics.filter(rubric => rubric.subjectId === subject.id).length;
+      if (objectiveCount || subjectiveCount) throw new HttpError(409, 'SUBJECT_IN_USE', '该科目已关联题目，无法删除，请先移除题目关联');
+      adminSubjectCatalog.splice(adminSubjectCatalog.indexOf(subject), 1);
+      await persist('delete from subjects where id = $1', [subject.id]);
+      await persist('insert into admin_audit_logs (admin_user_id,action,resource_type,resource_id,request_id) values ($1,$2,$3,$4,$5)', [admin.adminId, 'subject.delete', 'subject', subject.id, requestId]);
+      return send(res, 200, {deleted: true, id: subject.id}, requestId);
+    }
     if (adminSubjectMatch && req.method === 'PATCH') { const admin = requireAdmin(req, 'content.questions.write'); const subject = adminSubjectCatalog.find(item => item.id === adminSubjectMatch[1]); if (!subject) throw new HttpError(404, 'NOT_FOUND', '科目不存在'); const input = await body(req); const name = String(input.name ?? subject.name).trim(); const questionType = String(input.questionType ?? subject.questionType); if (name.length < 1 || !['objective', 'subjective', 'both'].includes(questionType)) throw new HttpError(422, 'VALIDATION_ERROR', '科目名称或题目分类不正确'); subject.name = name; subject.questionType = questionType as typeof subject.questionType; await persistSubject(subject); return send(res, 200, subject, requestId); }
     const adminChapterCreate = path.match(/^\/v1\/admin\/content\/subjects\/([^/]+)\/chapters$/);
     if (adminChapterCreate && req.method === 'POST') { requireAdmin(req, 'content.questions.write'); const subject = adminSubjectCatalog.find(item => item.id === adminChapterCreate[1]); if (!subject) throw new HttpError(404, 'NOT_FOUND', '科目不存在'); const input = await body(req); const name = String(input.name ?? '').trim(); if (!name) throw new HttpError(422, 'VALIDATION_ERROR', '章节名称不能为空'); const chapter = {id: `chapter-${randomUUID()}`, name, questionType: (['objective', 'subjective', 'both'].includes(String(input.questionType)) ? String(input.questionType) : subject.questionType) as 'objective' | 'subjective' | 'both', points: [] as Array<{id: string; name: string}>}; subject.chapters.push(chapter); await persistSubject(subject); return send(res, 201, subject, requestId); }
     const adminChapterMatch = path.match(/^\/v1\/admin\/content\/subjects\/([^/]+)\/chapters\/([^/]+)$/);
+    if (adminChapterMatch && req.method === 'DELETE') {
+      const admin = requireAdmin(req, 'content.questions.write');
+      const subject = adminSubjectCatalog.find(item => item.id === adminChapterMatch[1]);
+      const chapter = subject?.chapters.find(item => item.id === adminChapterMatch[2]);
+      if (!subject || !chapter) throw new HttpError(404, 'NOT_FOUND', '章节不存在');
+      const objectiveCount = store.questions.filter(question => question.chapterId === chapter.id).length;
+      const subjectiveCount = store.gradingRubrics.filter(rubric => rubric.chapterId === chapter.id).length;
+      if (objectiveCount || subjectiveCount) throw new HttpError(409, 'CHAPTER_IN_USE', '该章节已关联题目，无法删除，请先移除题目关联');
+      subject.chapters = subject.chapters.filter(item => item.id !== chapter.id);
+      await persistSubject(subject);
+      await persist('insert into admin_audit_logs (admin_user_id,action,resource_type,resource_id,request_id) values ($1,$2,$3,$4,$5)', [admin.adminId, 'chapter.delete', 'chapter', chapter.id, requestId]);
+      return send(res, 200, {deleted: true, id: chapter.id}, requestId);
+    }
     if (adminChapterMatch && req.method === 'PATCH') { requireAdmin(req, 'content.questions.write'); const subject = adminSubjectCatalog.find(item => item.id === adminChapterMatch[1]); const chapter = subject?.chapters.find(item => item.id === adminChapterMatch[2]); if (!subject || !chapter) throw new HttpError(404, 'NOT_FOUND', '章节不存在'); const input = await body(req); if (input.name !== undefined) chapter.name = String(input.name).trim(); if (input.questionType !== undefined && ['objective', 'subjective', 'both'].includes(String(input.questionType))) chapter.questionType = String(input.questionType) as typeof chapter.questionType; if (!chapter.name) throw new HttpError(422, 'VALIDATION_ERROR', '章节名称不能为空'); await persistSubject(subject); return send(res, 200, subject, requestId); }
     const adminPointCreate = path.match(/^\/v1\/admin\/content\/subjects\/([^/]+)\/chapters\/([^/]+)\/points$/);
     if (adminPointCreate && req.method === 'POST') { requireAdmin(req, 'content.questions.write'); const subject = adminSubjectCatalog.find(item => item.id === adminPointCreate[1]); const chapter = subject?.chapters.find(item => item.id === adminPointCreate[2]); if (!subject || !chapter) throw new HttpError(404, 'NOT_FOUND', '章节不存在'); const input = await body(req); const name = String(input.name ?? '').trim(); if (!name) throw new HttpError(422, 'VALIDATION_ERROR', '考点名称不能为空'); chapter.points.push({id: `point-${randomUUID()}`, name}); return send(res, 201, subject, requestId); }
     const adminPointMatch = path.match(/^\/v1\/admin\/content\/subjects\/([^/]+)\/chapters\/([^/]+)\/points\/([^/]+)$/);
+    if (adminPointMatch && req.method === 'DELETE') {
+      const admin = requireAdmin(req, 'content.questions.write');
+      const subject = adminSubjectCatalog.find(item => item.id === adminPointMatch[1]);
+      const chapter = subject?.chapters.find(item => item.id === adminPointMatch[2]);
+      const point = chapter?.points.find(item => item.id === adminPointMatch[3]);
+      if (!subject || !chapter || !point) throw new HttpError(404, 'NOT_FOUND', '考点不存在');
+      const objectiveCount = store.questions.filter(question => question.pointId === point.id).length;
+      const subjectiveCount = store.gradingRubrics.filter(rubric => rubric.pointId === point.id).length;
+      if (objectiveCount || subjectiveCount) throw new HttpError(409, 'POINT_IN_USE', '该考点已关联题目，无法删除，请先移除题目关联');
+      chapter.points = chapter.points.filter(item => item.id !== point.id);
+      await persistSubject(subject);
+      await persist('insert into admin_audit_logs (admin_user_id,action,resource_type,resource_id,request_id) values ($1,$2,$3,$4,$5)', [admin.adminId, 'point.delete', 'point', point.id, requestId]);
+      return send(res, 200, {deleted: true, id: point.id}, requestId);
+    }
     if (adminPointMatch && req.method === 'PATCH') { requireAdmin(req, 'content.questions.write'); const subject = adminSubjectCatalog.find(item => item.id === adminPointMatch[1]); const chapter = subject?.chapters.find(item => item.id === adminPointMatch[2]); const point = chapter?.points.find(item => item.id === adminPointMatch[3]); if (!subject || !chapter || !point) throw new HttpError(404, 'NOT_FOUND', '考点不存在'); const input = await body(req); const name = String(input.name ?? '').trim(); if (!name) throw new HttpError(422, 'VALIDATION_ERROR', '考点名称不能为空'); point.name = name; await persistSubject(subject); return send(res, 200, subject, requestId); }
     const normalizeObjectivePaper = (paper: typeof store.papers[number]) => ({...paper, questionKind: 'objective' as const, questionCount: paper.questionIds.length});
     const normalizeSubjectivePaper = (paper: typeof store.gradingPapers[number]) => ({
