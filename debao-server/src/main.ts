@@ -636,7 +636,9 @@ async function ensureAutoPracticeTasks(plan: Store['learningPlans'][number]) {
   const config = stagePlanConfig(plan.stageId);
   const courseItems = sourceItems.filter(item => item.contentType === 'course');
   const planTasks = store.learningTasks.filter(task => task.planId === plan.id);
-  const generatedPointKeys = new Set<string>();
+  // Keep the same card/question from being duplicated for a split course task,
+  // while still generating a fresh set for each separately scheduled course day.
+  const generatedCourseKeys = new Set<string>();
   const additions: Store['learningTasks'] = [];
   for (const courseTask of planTasks.filter(task => task.contentType === 'course').sort((left, right) => left.dueDate.localeCompare(right.dueDate) || left.id.localeCompare(right.id))) {
     const baseTitle = courseTask.title.replace(/（第\d+部分）$/, '');
@@ -644,13 +646,16 @@ async function ensureAutoPracticeTasks(plan: Store['learningPlans'][number]) {
     const pointIds = source?.knowledgePointIds ?? [];
     if (!pointIds.length) continue;
     const pointKey = [...new Set(pointIds)].sort().join(',');
-    if (generatedPointKeys.has(pointKey)) continue;
-    generatedPointKeys.add(pointKey);
+    const courseKey = `${courseTask.dueDate}:${baseTitle}:${pointKey}`;
+    if (generatedCourseKeys.has(courseKey)) continue;
+    generatedCourseKeys.add(courseKey);
+    const taskMatchesCourse = (task: Store['learningTasks'][number], contentType: 'card' | 'question', contentId: string) =>
+      task.dueDate === courseTask.dueDate && task.contentType === contentType && task.contentId === contentId && task.title.startsWith(`${baseTitle}·`);
     const cardId = publishedCardIdsForKnowledgePoints(pointIds)[0];
-    if (cardId && !planTasks.some(task => task.contentType === 'card' && task.contentId === cardId)) additions.push({id: `task-${randomUUID()}`, planId: plan.id, title: `${baseTitle}·背诵卡片`, description: '完成本课后复习关联考点。', dueDate: courseTask.dueDate, minutes: 1, status: 'todo', contentType: 'card', contentId: cardId});
+    if (cardId && ![...planTasks, ...additions].some(task => taskMatchesCourse(task, 'card', cardId))) additions.push({id: `task-${randomUUID()}`, planId: plan.id, title: `${baseTitle}·背诵卡片`, description: '完成本课后复习关联考点。', dueDate: courseTask.dueDate, minutes: 1, status: 'todo', contentType: 'card', contentId: cardId});
     const questionIds = profileQuestionIds(plan.userId, Math.max(1, config.questionPushCount), pointIds);
     questionIds.forEach((questionId, index) => {
-      if (planTasks.some(task => task.contentType === 'question' && task.contentId === questionId) || additions.some(task => task.contentType === 'question' && task.contentId === questionId)) return;
+      if ([...planTasks, ...additions].some(task => taskMatchesCourse(task, 'question', questionId))) return;
       additions.push({id: `task-${randomUUID()}`, planId: plan.id, title: `${baseTitle}·配套练习${index ? `（第${index + 1}题）` : ''}`, description: '完成本课关联考点练习。', dueDate: courseTask.dueDate, minutes: 1, status: 'todo', contentType: 'question', contentId: questionId});
     });
   }
