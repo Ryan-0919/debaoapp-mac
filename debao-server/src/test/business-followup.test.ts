@@ -40,7 +40,7 @@ test('learning plans pause, resume and automatically rebalance unfinished tasks'
   const headers = {'content-type': 'application/json', authorization: 'Bearer demo-token'};
   try {
     const tasks = await fetch(`${base}/v1/learning/tasks`, {headers}); const tasksJson = await tasks.json() as any;
-    assert.equal(tasks.status, 200); assert.equal(tasksJson.data.find((item: any) => item.id === `${planId}-late`).dueDate >= new Date().toISOString().slice(0, 10), true);
+    assert.equal(tasks.status, 200); assert.equal(tasksJson.data.find((item: any) => item.id === `${planId}-late`).dueDate >= new Date().toISOString().slice(0, 10), true); assert.equal(tasksJson.data.find((item: any) => item.id === `${planId}-next`).dueDate, '2026-12-31');
     const paused = await fetch(`${base}/v1/learning/plans/${planId}/pause`, {method: 'POST', headers, body: JSON.stringify({days: 2, reason: '用户临时请假'})}); const pausedJson = await paused.json() as any;
     assert.equal(paused.status, 200); assert.equal(pausedJson.data.pausedUntil !== undefined, true); assert.equal(store.learningPlans.find(item => item.id === planId)?.pausedUntil !== undefined, true);
     const resumed = await fetch(`${base}/v1/learning/plans/${planId}/resume`, {method: 'POST', headers, body: JSON.stringify({reason: '用户恢复学习'})}); const resumedJson = await resumed.json() as any;
