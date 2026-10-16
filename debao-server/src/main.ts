@@ -3605,7 +3605,7 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
         if (!result.correct) {
           const lastAnswer = result.answers.join(','); const old = store.mistakes.find(item => item.userId === userId && item.questionId === result.questionId);
           if (old) { old.wrongCount += 1; old.lastAnswer = lastAnswer; old.resolved = false; } else store.mistakes.unshift({id: `mistake:${result.questionId}`, userId, questionId: result.questionId, wrongCount: 1, lastAnswer, resolved: false});
-          await persist('insert into mistakes (user_id, question_id, wrong_count, last_answer, resolved_at) values ($1, $2, $3, $4, null) on conflict (user_id, question_id) do update set wrong_count = mistakes.wrong_count + 1, last_answer = excluded.last_answer, resolved_at = null', [dbUserId(userId), result.questionId, lastAnswer]);
+          await persist('insert into mistakes (user_id, question_id, wrong_count, last_answer, resolved_at) values ($1, $2, $3, $4, null) on conflict (user_id, question_id) do update set wrong_count = mistakes.wrong_count + 1, last_answer = excluded.last_answer, resolved_at = null', [dbUserId(userId), result.questionId, 1, lastAnswer]);
         }
       }
       await persist('update objective_sessions set answers = $1::jsonb, status = $2, submission_idempotency_key = $3, idempotency_key = coalesce(idempotency_key, create_idempotency_key), report_id = $4, submitted_at = $5, updated_at = $5 where id = $6 and user_id = $7', [JSON.stringify(session.answers), session.status, session.submissionIdempotencyKey, session.reportId, submittedAt, session.id, dbUserId(userId)]);
