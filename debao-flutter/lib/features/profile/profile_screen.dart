@@ -589,6 +589,7 @@ class PrivateCoachOverviewScreen extends ConsumerStatefulWidget {
 class _PrivateCoachOverviewState
     extends ConsumerState<PrivateCoachOverviewScreen> {
   String? selectedSubjectId;
+  String examMode = 'objective';
 
   @override
   Widget build(BuildContext context) {
@@ -599,6 +600,7 @@ class _PrivateCoachOverviewState
     final records = ref.watch(learningQuestionRecordsProvider);
     final inquiries = ref.watch(learningInquiriesProvider);
     final orders = ref.watch(ordersProvider);
+    final grading = ref.watch(gradingSubmissionsProvider);
     final loading = [plans, tasks, report, records, inquiries, orders];
     if (loading.any((state) => state.isLoading && !state.hasValue)) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
@@ -680,11 +682,38 @@ class _PrivateCoachOverviewState
         : visibleSubjects
             .where((item) => item.subjectId == selectedSubjectId)
             .toList();
+    final subjectiveSubmissions =
+        grading.valueOrNull ?? const <GradingSubmission>[];
+    final gradedSubjective = subjectiveSubmissions.where((item) {
+      final score = item.score;
+      final maxScore = item.maxScore;
+      return score != null && maxScore != null && maxScore > 0;
+    }).toList(growable: false);
+    final subjectiveRate = gradedSubjective.isEmpty
+        ? null
+        : (gradedSubjective
+                    .map((item) => (item.score! / item.maxScore!) * 100)
+                    .reduce((left, right) => left + right) /
+                gradedSubjective.length)
+            .round()
+            .clamp(0, 100)
+            .toInt();
+    final activeRate =
+        examMode == 'objective' ? monthReport?.correctRate : subjectiveRate;
+    final activeMinutes = examMode == 'objective' ? monthReport?.minutes : null;
+    final activeAnswered = examMode == 'objective'
+        ? monthReport?.answered
+        : gradedSubjective.length;
+    final activeSubjects = examMode == 'objective'
+        ? selected
+        : const <({String subjectId, int minutes, int correctRate})>[];
     return Scaffold(
       backgroundColor: DebaoColors.page,
       appBar:
           AppBar(title: const Text('得恩私教学习中心'), backgroundColor: Colors.white),
       body: ListView(padding: const EdgeInsets.all(16), children: [
+        _examModeTabs(),
+        const SizedBox(height: 10),
         Card(
             child: Padding(
                 padding: const EdgeInsets.all(16),
@@ -700,63 +729,31 @@ class _PrivateCoachOverviewState
                             style: TextStyle(
                                 fontSize: 16, fontWeight: FontWeight.w700)),
                         const SizedBox(height: 4),
-                        Text('${planItems.length} 个学习计划 · 已完成 $doneTasks 项任务',
+                        Text(
+                            '${planItems.length} 个学习计划 · 已完成 $doneTasks 项任务 · ${examMode == 'objective' ? '客观题' : '主观题'}',
                             style: const TextStyle(
                                 color: DebaoColors.muted, fontSize: 12))
                       ]))
                 ]))),
-        Card(
-            margin: const EdgeInsets.only(top: 10),
-            child: Padding(
-                padding: const EdgeInsets.all(14),
-                child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('学习数据可视化',
-                          style: TextStyle(
-                              fontSize: 15, fontWeight: FontWeight.w700)),
-                      const SizedBox(height: 4),
-                      const Text('全部科目与单个科目均来自真实学习报告接口',
-                          style: TextStyle(
-                              color: DebaoColors.muted, fontSize: 11)),
-                      const SizedBox(height: 10),
-                      DropdownButtonFormField<String>(
-                          initialValue: selectedSubjectId ?? '',
-                          decoration: const InputDecoration(
-                              labelText: '查看范围', border: OutlineInputBorder()),
-                          items: [
-                            const DropdownMenuItem(
-                                value: '', child: Text('全部科目')),
-                            ...visibleSubjects.map((item) => DropdownMenuItem(
-                                value: item.subjectId,
-                                child: Text(subjects
-                                    .firstWhere(
-                                        (subject) =>
-                                            subject.id == item.subjectId,
-                                        orElse: () => Subject(
-                                            id: item.subjectId,
-                                            name: item.subjectId))
-                                    .name)))
-                          ],
-                          onChanged: (value) => setState(() =>
-                              selectedSubjectId = value == null || value.isEmpty
-                                  ? null
-                                  : value)),
-                      const SizedBox(height: 14),
-                      SizedBox(
-                          height: 180,
-                          child: _LearningDataChart(
-                              subjects: selected,
-                              labelFor: (id) => subjects
-                                  .firstWhere((subject) => subject.id == id,
-                                      orElse: () => Subject(id: id, name: id))
-                                  .name)),
-                      const SizedBox(height: 8),
-                      Text(
-                          '月度学习 ${monthReport?.minutes ?? 0} 分钟 · 做题 ${monthReport?.answered ?? 0} 题 · 正确率 ${monthReport?.correctRate ?? 0}%',
-                          style: const TextStyle(
-                              color: DebaoColors.body, fontSize: 12))
-                    ]))),
+        _scoreCard(
+            rate: activeRate,
+            answered: activeAnswered,
+            report: monthReport,
+            hasSubjectiveData: gradedSubjective.isNotEmpty),
+        _subjectFilter(
+            subjects: subjects,
+            visibleSubjects: visibleSubjects,
+            enabled: examMode == 'objective'),
+        _learningDataCard(
+            report: monthReport,
+            rate: activeRate,
+            minutes: activeMinutes,
+            answered: activeAnswered,
+            subjects: activeSubjects,
+            subjectLabel: (id) => subjects
+                .firstWhere((subject) => subject.id == id,
+                    orElse: () => Subject(id: id, name: id))
+                .name),
         _privateSection(
             context,
             '学习进度',
@@ -822,6 +819,335 @@ class _PrivateCoachOverviewState
       ]),
     );
   }
+
+  Widget _examModeTabs() => Container(
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(
+            color: const Color(0xFFEFF0F5),
+            borderRadius: BorderRadius.circular(12)),
+        child: Row(children: [
+          _modeTab('objective', '客观题'),
+          _modeTab('subjective', '主观题'),
+        ]),
+      );
+
+  Widget _modeTab(String mode, String label) {
+    final selected = examMode == mode;
+    return Expanded(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(9),
+        onTap: () => setState(() {
+          examMode = mode;
+          selectedSubjectId = null;
+        }),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(vertical: 11),
+          decoration: BoxDecoration(
+              color: selected ? Colors.white : Colors.transparent,
+              borderRadius: BorderRadius.circular(9),
+              boxShadow: selected
+                  ? const [
+                      BoxShadow(
+                          color: Color(0x14000000),
+                          blurRadius: 5,
+                          offset: Offset(0, 2))
+                    ]
+                  : null),
+          child: Text(label,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                  color: selected ? const Color(0xFF4C4BEA) : DebaoColors.body,
+                  fontSize: 16,
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500)),
+        ),
+      ),
+    );
+  }
+
+  Widget _scoreCard({
+    required int? rate,
+    required int? answered,
+    required LearningReport? report,
+    required bool hasSubjectiveData,
+  }) {
+    final hasData = rate != null && (answered ?? 0) > 0;
+    final score = hasData && examMode == 'objective'
+        ? (rate * 1.8).round().clamp(0, 180)
+        : null;
+    return Card(
+      margin: const EdgeInsets.only(top: 10),
+      clipBehavior: Clip.antiAlias,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 15, 16, 14),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Text(examMode == 'objective' ? '预估分' : '主观题得分率',
+                style: const TextStyle(
+                    color: DebaoColors.ink,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w700)),
+            const Spacer(),
+            TextButton(
+                onPressed: examMode == 'objective'
+                    ? () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) =>
+                                LearningReportScreen(remoteEnabled: true)))
+                    : null,
+                child: const Text('变化趋势 ›')),
+          ]),
+          const SizedBox(height: 2),
+          Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+            Text(score == null ? (hasData ? '$rate%' : '--') : '$score',
+                style: const TextStyle(
+                    color: Color(0xFF18244C),
+                    fontSize: 42,
+                    height: 1,
+                    fontWeight: FontWeight.w700)),
+            const SizedBox(width: 8),
+            if (hasData)
+              Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Text(
+                      examMode == 'objective'
+                          ? '当前正确率 $rate%'
+                          : '共 $answered 份已批改',
+                      style: const TextStyle(
+                          color: Color(0xFF4C4BEA), fontSize: 12))),
+          ]),
+          const SizedBox(height: 8),
+          Text(
+              hasData
+                  ? '数据来自${report?.period == 'month' ? '本月' : '当前'}真实学习记录'
+                  : examMode == 'subjective' && !hasSubjectiveData
+                      ? '完成主观题并收到批改后，这里会显示数据'
+                      : '完成课程或练习后，这里会生成预估分',
+              style: const TextStyle(color: DebaoColors.muted, fontSize: 12)),
+        ]),
+      ),
+    );
+  }
+
+  Widget _subjectFilter({
+    required List<Subject> subjects,
+    required List<({String subjectId, int minutes, int correctRate})>
+        visibleSubjects,
+    required bool enabled,
+  }) {
+    final items = <({String? id, String label})>[
+      (id: null, label: '全部'),
+      ...visibleSubjects.map((item) => (
+            id: item.subjectId,
+            label: subjects
+                .firstWhere((subject) => subject.id == item.subjectId,
+                    orElse: () =>
+                        Subject(id: item.subjectId, name: item.subjectId))
+                .name
+          )),
+    ];
+    return Card(
+      margin: const EdgeInsets.only(top: 10),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          child: Row(
+              children: items
+                  .map((item) => Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: ChoiceChip(
+                          label: Text(item.label),
+                          selected: enabled && selectedSubjectId == item.id,
+                          onSelected: !enabled
+                              ? null
+                              : (_) =>
+                                  setState(() => selectedSubjectId = item.id),
+                          selectedColor: const Color(0xFFE9E9FF),
+                          labelStyle: TextStyle(
+                              color: enabled && selectedSubjectId == item.id
+                                  ? const Color(0xFF4C4BEA)
+                                  : DebaoColors.body,
+                              fontWeight:
+                                  enabled && selectedSubjectId == item.id
+                                      ? FontWeight.w700
+                                      : FontWeight.w400),
+                          side: BorderSide.none,
+                        ),
+                      ))
+                  .toList()),
+        ),
+      ),
+    );
+  }
+
+  Widget _learningDataCard({
+    required LearningReport? report,
+    required int? rate,
+    required int? minutes,
+    required int? answered,
+    required List<({String subjectId, int minutes, int correctRate})> subjects,
+    required String Function(String) subjectLabel,
+  }) {
+    final hasData =
+        (rate ?? 0) > 0 || (minutes ?? 0) > 0 || (answered ?? 0) > 0;
+    return Card(
+      margin: const EdgeInsets.only(top: 10),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 14, 14, 16),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            const Text('学习数据',
+                style: TextStyle(
+                    color: DebaoColors.ink,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w700)),
+            const SizedBox(width: 6),
+            const Icon(Icons.help_outline, size: 16, color: DebaoColors.muted),
+            const Spacer(),
+            Text(examMode == 'objective' ? '客观题' : '主观题',
+                style: const TextStyle(color: DebaoColors.muted, fontSize: 12)),
+          ]),
+          const SizedBox(height: 5),
+          Text(
+              report == null
+                  ? '统计范围：暂无数据'
+                  : '统计范围：${report.period == 'month' ? '本月' : report.period}',
+              style: const TextStyle(color: DebaoColors.muted, fontSize: 12)),
+          const SizedBox(height: 12),
+          _dataLegend(),
+          const SizedBox(height: 14),
+          if (!hasData)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 22),
+              child: Center(
+                  child: Text('完成学习后，这里会显示你的真实数据',
+                      style: TextStyle(color: DebaoColors.muted))),
+            )
+          else ...[
+            _metricBar('听课时长', _hoursLabel(minutes ?? 0), '${minutes ?? 0} 分钟',
+                ((minutes ?? 0) / 600).clamp(0, 1)),
+            _metricBar('做题丰富度', '${answered ?? 0} 题', '${answered ?? 0} 题',
+                ((answered ?? 0) / 500).clamp(0, 1)),
+            _metricBar('得分率', '${rate ?? 0}%', '${rate ?? 0}%',
+                ((rate ?? 0) / 100).clamp(0, 1)),
+            _metricBar('做题量', '${answered ?? 0} 题', '${answered ?? 0} 题',
+                ((answered ?? 0) / 500).clamp(0, 1)),
+          ],
+          if (subjects.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            const Text('各科学习表现',
+                style: TextStyle(
+                    color: DebaoColors.ink,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700)),
+            const SizedBox(height: 8),
+            SizedBox(
+                height: 165,
+                child: _LearningDataChart(
+                    subjects: subjects, labelFor: subjectLabel)),
+          ],
+        ]),
+      ),
+    );
+  }
+
+  Widget _dataLegend() => Row(children: [
+        const Text('学习数据水平',
+            style: TextStyle(color: DebaoColors.body, fontSize: 12)),
+        const SizedBox(width: 10),
+        ...[
+          (const Color(0xFFFF6B54), '<60'),
+          (const Color(0xFFFFC15A), '60-70'),
+          (const Color(0xFF6ED7C2), '70-80'),
+          (const Color(0xFF6788ED), '≥80'),
+        ].map((item) => Padding(
+              padding: const EdgeInsets.only(right: 7),
+              child: Row(children: [
+                Container(
+                    width: 17,
+                    height: 7,
+                    decoration: BoxDecoration(
+                        color: item.$1,
+                        borderRadius: BorderRadius.circular(4))),
+                const SizedBox(width: 3),
+                Text(item.$2,
+                    style:
+                        const TextStyle(color: DebaoColors.muted, fontSize: 9)),
+              ]),
+            )),
+      ]);
+
+  String _hoursLabel(int minutes) {
+    if (minutes < 60) return '${minutes}m';
+    final hours = minutes / 60;
+    return '${hours.toStringAsFixed(hours == hours.roundToDouble() ? 0 : 1)}h';
+  }
+
+  Widget _metricBar(String title, String value, String detail, double ratio) =>
+      Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+            SizedBox(
+                width: 74,
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(title,
+                          style: const TextStyle(
+                              color: DebaoColors.body,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600)),
+                      const SizedBox(height: 2),
+                      Text(value,
+                          style: const TextStyle(
+                              color: Color(0xFF4C4BEA),
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700)),
+                    ])),
+            const SizedBox(width: 8),
+            Expanded(
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                  SizedBox(
+                      height: 9,
+                      child: LayoutBuilder(builder: (context, constraints) {
+                        final marker = constraints.maxWidth * ratio.clamp(0, 1);
+                        return Stack(children: [
+                          DecoratedBox(
+                              decoration: BoxDecoration(
+                                  color: const Color(0xFFF1F2F5),
+                                  borderRadius: BorderRadius.circular(5)),
+                              child: const SizedBox.expand()),
+                          FractionallySizedBox(
+                              widthFactor: ratio.clamp(0, 1),
+                              child: DecoratedBox(
+                                  decoration: BoxDecoration(
+                                      gradient: const LinearGradient(colors: [
+                                        Color(0xFFFF6B54),
+                                        Color(0xFFFFC15A),
+                                        Color(0xFF6ED7C2),
+                                        Color(0xFF6788ED),
+                                      ]),
+                                      borderRadius: BorderRadius.circular(5)))),
+                          Positioned(
+                              left: (marker - 1.5)
+                                  .clamp(0, constraints.maxWidth - 3),
+                              top: -2,
+                              child: const Icon(Icons.arrow_drop_up,
+                                  size: 12, color: DebaoColors.ink)),
+                        ]);
+                      })),
+                  const SizedBox(height: 3),
+                  Text(detail,
+                      textAlign: TextAlign.right,
+                      style: const TextStyle(
+                          color: DebaoColors.muted, fontSize: 10)),
+                ])),
+          ]));
 
   Widget _privateSection(BuildContext context, String title, IconData icon,
           String summary, VoidCallback onTap) =>
