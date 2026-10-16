@@ -279,8 +279,12 @@ async function shiftPendingPlanTasks(plan: Store['learningPlans'][number], days:
   plan.endDate = nextEndDate; plan.version = nextVersion; plan.changeReason = reason; plan.updatedAt = now;
 }
 
-function dateOnly(value: string) {
-  return value.slice(0, 10);
+function dateOnly(value: unknown) {
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  const text = String(value ?? '');
+  if (/^\d{4}-\d{2}-\d{2}/.test(text)) return text.slice(0, 10);
+  const timestamp = Date.parse(text);
+  return Number.isFinite(timestamp) ? new Date(timestamp).toISOString().slice(0, 10) : text.slice(0, 10);
 }
 
 function addDays(dateValue: string, amount: number) {
@@ -1971,7 +1975,7 @@ export async function hydrateStore() {
   const learningCards = await infrastructure.query<any>('select * from learning_cards order by sort_order, updated_at desc, id');
   if (learningCards) store.learningCards = learningCards.rows.map((row: any) => ({id: row.id, title: row.title, description: row.description ?? undefined, contentType: row.content_type, assets: Array.isArray(row.assets) ? row.assets : [], recallItems: Array.isArray(row.recall_items) ? row.recall_items : [], knowledgePointIds: Array.isArray(row.knowledge_point_ids) ? row.knowledge_point_ids.map(String) : [], sortOrder: Number(row.sort_order), status: row.status, version: Number(row.version), createdAt: new Date(row.created_at).toISOString(), updatedAt: new Date(row.updated_at).toISOString(), publishedAt: row.published_at ? new Date(row.published_at).toISOString() : undefined}));
   const learningClassTypes = await infrastructure.query<any>('select * from learning_class_types order by sort_order, id');
-  if (learningClassTypes) store.learningClassTypes = learningClassTypes.rows.map((row: any) => ({id: row.id, code: row.code, name: row.name, productId: row.product_id ?? undefined, description: row.description ?? undefined, endDate: dateOnly(String(row.end_date ?? '2099-12-31')), sortOrder: Number(row.sort_order), status: row.status, createdAt: new Date(row.created_at).toISOString(), updatedAt: new Date(row.updated_at).toISOString()}));
+  if (learningClassTypes) store.learningClassTypes = learningClassTypes.rows.map((row: any) => ({id: row.id, code: row.code, name: row.name, productId: row.product_id ?? undefined, description: row.description ?? undefined, endDate: dateOnly(row.end_date ?? '2099-12-31'), sortOrder: Number(row.sort_order), status: row.status, createdAt: new Date(row.created_at).toISOString(), updatedAt: new Date(row.updated_at).toISOString()}));
   const learningStages = await infrastructure.query<any>('select * from learning_stages order by sort_order, id');
   if (learningStages) store.learningStages = learningStages.rows.map((row: any) => ({id: row.id, classTypeId: row.class_type_id, code: row.code, name: row.name, description: row.description ?? undefined, conditions: Array.isArray(row.conditions) ? row.conditions : [], teacherIds: Array.isArray(row.teacher_ids) ? row.teacher_ids.map(String) : [], sortOrder: Number(row.sort_order), status: row.status, createdAt: new Date(row.created_at).toISOString(), updatedAt: new Date(row.updated_at).toISOString()}));
   const learningTeachers = await infrastructure.query<any>('select * from learning_teachers order by stage_id, sort_order, id');
@@ -4012,7 +4016,14 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
       await recordLearningPlanVersion(plan, reason, 'user'); return send(res, 200, plan, requestId);
     }
     if (req.method === 'GET' && path === '/v1/learning/tasks') {
-      const userId = requireAuth(req); const userPlans = store.learningPlans.filter(item => item.userId === userId); const plans = new Set(userPlans.map(item => item.id)); const today = Date.now();
+      const userId = requireAuth(req);
+      const attempt = store.learningDiagnosticAttempts.find(item => item.userId === userId);
+      const assignment = attempt ? store.learningTeacherAssignments.find(item => item.attemptId === attempt.id) : undefined;
+      // The calendar can be the first learning endpoint opened after an admin
+      // publishes a stage plan. Materialize a managed plan before reading tasks
+      // so users whose diagnosis finished earlier do not see an empty calendar.
+      await ensureAutoLearningPlan(userId, assignment?.classTypeId, assignment?.stageId);
+      const userPlans = store.learningPlans.filter(item => item.userId === userId); const plans = new Set(userPlans.map(item => item.id)); const today = Date.now();
       for (const plan of userPlans) { try { await rebalanceLearningPlan(plan); } catch { /* retry on the next read */ } }
       const tasks = store.learningTasks.filter(item => plans.has(item.planId));
       for (const task of tasks) {
