@@ -19,9 +19,23 @@ class ProfileScreen extends StatelessWidget {
   final bool remoteEnabled;
 
   @override
-  Widget build(BuildContext context) => remoteEnabled
-      ? const ProviderScope(child: _RemoteProfileBody())
-      : const _ProfileContent(remoteEnabled: false);
+  Widget build(BuildContext context) {
+    if (!remoteEnabled) return const _ProfileContent(remoteEnabled: false);
+    const body = _RemoteProfileBody();
+    // Reuse the application's root container so this page observes the
+    // invalidation performed by the login flow. A fallback scope keeps the
+    // screen usable when opened directly in an isolated preview/test.
+    return _hasProviderScope(context) ? body : const ProviderScope(child: body);
+  }
+
+  bool _hasProviderScope(BuildContext context) {
+    try {
+      ProviderScope.containerOf(context, listen: false);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
 }
 
 class _RemoteProfileBody extends ConsumerWidget {

@@ -19,9 +19,24 @@ class LoginScreen extends StatelessWidget {
   final bool remoteEnabled;
 
   @override
-  Widget build(BuildContext context) => ProviderScope(
-        child: _LoginBody(remoteEnabled: remoteEnabled),
-      );
+  Widget build(BuildContext context) {
+    final body = _LoginBody(remoteEnabled: remoteEnabled);
+    // The production router already lives below the app's root ProviderScope.
+    // Reusing that container is required so a successful login invalidates the
+    // same current-user provider that the shell/profile page reads. Keep a
+    // local scope only when this screen is rendered standalone by a preview or
+    // widget test.
+    return _hasProviderScope(context) ? body : ProviderScope(child: body);
+  }
+
+  bool _hasProviderScope(BuildContext context) {
+    try {
+      ProviderScope.containerOf(context, listen: false);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
 }
 
 class _LoginBody extends ConsumerStatefulWidget {
