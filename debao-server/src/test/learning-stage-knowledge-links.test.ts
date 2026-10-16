@@ -66,6 +66,16 @@ test('automatic cards use published cards matching the stage knowledge points', 
   assert.deepEqual(cards.map(task => task.contentId), ['matching-card']);
 }));
 
+test('course-only stage plans automatically add matching cards and questions', async () => isolated(async base => {
+  const source = store.learningQuestionBankQuestions[0];
+  const now = new Date().toISOString();
+  store.learningCards = [{id: 'implicit-card', title: '自动背诵卡片', contentType: 'image_gallery', assets: [], recallItems: [], knowledgePointIds: [source.pointId], sortOrder: 1, status: 'published', version: 1, createdAt: now, updatedAt: now, publishedAt: now}];
+  store.learningStagePlanItems = [{id: 'course-only', stageId: 'stage-foundation', contentType: 'course', title: '本课听课', description: '完成课程后回来打卡', knowledgePointIds: [source.pointId], sortOrder: 10, weekDay: 1, required: true}];
+  const tasks = await preview(base);
+  assert.deepEqual(tasks.filter(task => task.contentType === 'card').map(task => task.contentId), ['implicit-card']);
+  assert.deepEqual(tasks.filter(task => task.contentType === 'question').map(task => task.contentId), [source.id]);
+}));
+
 test('publish rejects a mixture of taught and untaught points', async () => isolated(async base => {
   curriculum();
   store.learningStagePlanItems[2].knowledgePointIds = [coursePoint, 'untaught'];
