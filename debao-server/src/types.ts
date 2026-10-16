@@ -253,11 +253,11 @@ export interface LearningQuestionBankQuestion {
   publishedSnapshot?: Pick<LearningStagePlanConfig, 'dailyMinutes' | 'studyDays' | 'durationDays' | 'makeupPolicy'>;
 }
 
-export type LearningCardContentType = 'image_gallery' | 'html';
+export type LearningCardContentType = 'image_gallery' | 'html' | 'pdf';
 export type LearningCardStatus = 'draft' | 'published' | 'disabled';
 export interface LearningCardAsset {
   id: string;
-  type: 'image' | 'html';
+  type: 'image' | 'html' | 'pdf';
   filename: string;
   reference: string;
   sizeBytes: number;

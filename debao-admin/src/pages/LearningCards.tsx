@@ -121,12 +121,12 @@ export default function LearningCards() {
     setDrawerOpen(true);
   };
   const uploadFiles = async (files: File[]) => {
-    const limit = watchedType === "html" ? 1 : 20;
+    const limit = watchedType === "image_gallery" ? 20 : 1;
     const remaining = limit - assets.length;
     if (remaining <= 0)
       return message.warning(
         watchedType === "html"
-          ? "HTML 卡片只能上传一个文件"
+          ? "HTML/PDF 卡片只能上传一个文件"
           : "一张卡片最多上传 20 张图片",
       );
     setUploading(true);
@@ -136,6 +136,7 @@ export default function LearningCards() {
         const asset = await uploadLearningCardAsset(file, setUploadProgress);
         if (
           (watchedType === "html" && asset.type !== "html") ||
+          (watchedType === "pdf" && asset.type !== "pdf") ||
           (watchedType === "image_gallery" && asset.type !== "image")
         )
           throw new Error("上传文件与当前卡片类型不匹配");
@@ -165,8 +166,8 @@ export default function LearningCards() {
   const save = async (values: CardForm) => {
     if (!assets.length)
       return message.error(
-        values.contentType === "html"
-          ? "请上传 HTML 文件"
+        values.contentType !== "image_gallery"
+          ? `请上传 ${values.contentType === "pdf" ? "PDF" : "HTML"} 文件`
           : "请至少上传一张图片",
       );
     const input: AdminLearningCardInput = {
@@ -568,6 +569,11 @@ export default function LearningCards() {
                   value: "html",
                   icon: <FileTextOutlined />,
                 },
+                {
+                  label: "PDF 卡片",
+                  value: "pdf",
+                  icon: <FileTextOutlined />,
+                },
               ]}
             />
           </Form.Item>
@@ -576,22 +582,26 @@ export default function LearningCards() {
             type="info"
             message={
               watchedType === "html"
-                ? "上传一个 HTML 文件，最大 10 MB。预览时会禁止脚本运行，避免导入内容影响管理后台。"
+                ? "上传一个 HTML 文件，最大 10 MB。预览时会禁止脚本运行。"
+                : watchedType === "pdf"
+                  ? "上传一个 PDF 文件，最大 30 MB。用户可在线打开阅读。"
                 : "支持 JPG、PNG、WebP、GIF；单张最大 15 MB，一张卡片最多 20 张图片。图片顺序就是用户阅读顺序。"
             }
             style={{ marginBottom: 16 }}
           />
           <Upload.Dragger
             multiple={watchedType === "image_gallery"}
-            maxCount={watchedType === "html" ? 1 : 20}
+            maxCount={watchedType === "image_gallery" ? 20 : 1}
             accept={
               watchedType === "html"
                 ? ".html,.htm,text/html"
+                : watchedType === "pdf"
+                  ? ".pdf,application/pdf"
                 : ".jpg,.jpeg,.png,.webp,.gif,image/*"
             }
             showUploadList={false}
             disabled={
-              uploading || (watchedType === "html" && assets.length > 0)
+              uploading || (watchedType !== "image_gallery" && assets.length > 0)
             }
             beforeUpload={(_, fileList) => {
               if (fileList[0] === _) void uploadFiles(fileList);
@@ -602,7 +612,7 @@ export default function LearningCards() {
               <UploadOutlined />
             </p>
             <p className="ant-upload-text">
-              点击选择或拖拽{watchedType === "html" ? " HTML 文件" : "图片"}
+              点击选择或拖拽{watchedType === "html" ? " HTML 文件" : watchedType === "pdf" ? " PDF 文件" : "图片"}
               到这里
             </p>
             <p className="ant-upload-hint">

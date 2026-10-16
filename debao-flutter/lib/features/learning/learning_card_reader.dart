@@ -16,8 +16,10 @@ Uri learningAssetUri(String reference) {
 }
 
 class LearningHtmlReader extends StatefulWidget {
-  const LearningHtmlReader({super.key, required this.reference});
+  const LearningHtmlReader(
+      {super.key, required this.reference, this.isPdf = false});
   final String reference;
+  final bool isPdf;
   @override
   State<LearningHtmlReader> createState() => _LearningHtmlReaderState();
 }
@@ -105,7 +107,8 @@ class _LearningHtmlReaderState extends State<LearningHtmlReader> {
                       : Center(
                           child: FilledButton(
                               onPressed: openInBrowser,
-                              child: const Text('打开 HTML 卡片')))),
+                              child: Text(
+                                  widget.isPdf ? '打开 PDF 卡片' : '打开 HTML 卡片')))),
           SafeArea(
               top: false,
               child: Padding(
@@ -113,7 +116,7 @@ class _LearningHtmlReaderState extends State<LearningHtmlReader> {
                   child: FilledButton(
                     onPressed:
                         loaded ? () => Navigator.pop(context, true) : null,
-                    child: const Text('阅读完成，返回背诵任务'),
+                    child: Text(widget.isPdf ? '阅读完成，返回背诵任务' : '阅读完成，返回背诵任务'),
                   ))),
         ]),
       );

@@ -383,33 +383,44 @@ class _LearningCardDeckState extends State<LearningCardDeck> {
                               color: DebaoColors.body)),
                     ]))),
       ]);
-    if (asset.type == 'html')
+    if (asset.type == 'html' || asset.type == 'pdf')
       return Center(
           child: Padding(
               padding: const EdgeInsets.all(24),
               child: Column(mainAxisSize: MainAxisSize.min, children: [
-                const Icon(Icons.article_outlined,
-                    size: 40, color: DebaoColors.brand),
+                Icon(
+                    asset.type == 'pdf'
+                        ? Icons.picture_as_pdf_outlined
+                        : Icons.article_outlined,
+                    size: 40,
+                    color: DebaoColors.brand),
                 const SizedBox(height: 20),
                 Text(asset.filename ?? widget.card.title,
                     textAlign: TextAlign.center,
                     style: const TextStyle(
                         fontSize: 20, fontWeight: FontWeight.w600)),
                 const SizedBox(height: 12),
-                const Text('打开完整内容，阅读后返回确认背诵。', textAlign: TextAlign.center),
+                Text(
+                    asset.type == 'pdf'
+                        ? '打开 PDF 内容，阅读后返回确认背诵。'
+                        : '打开完整内容，阅读后返回确认背诵。',
+                    textAlign: TextAlign.center),
                 const SizedBox(height: 24),
                 OutlinedButton(
-                    onPressed: () async {
-                      final read = await Navigator.push<bool>(
-                          context,
-                          MaterialPageRoute(
-                              builder: (_) => LearningHtmlReader(
-                                  reference: asset.reference)));
-                      if (mounted && read == true)
-                        setState(() => ready.add(page));
-                    },
-                    child: Text(
-                        ready.contains(page) ? '重新阅读 HTML 卡片' : '阅读 HTML 卡片')),
+                  onPressed: () async {
+                    final read = await Navigator.push<bool>(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => LearningHtmlReader(
+                                reference: asset.reference,
+                                isPdf: asset.type == 'pdf')));
+                    if (mounted && read == true)
+                      setState(() => ready.add(page));
+                  },
+                  child: Text(ready.contains(page)
+                      ? (asset.type == 'pdf' ? '重新阅读 PDF 卡片' : '重新阅读 HTML 卡片')
+                      : (asset.type == 'pdf' ? '阅读 PDF 卡片' : '阅读 HTML 卡片')),
+                )
               ])));
     if (asset.type != 'image')
       return const Center(child: Text('暂不支持此素材类型，请联系老师'));

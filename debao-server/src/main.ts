@@ -1036,17 +1036,18 @@ function validateLearningCardInput(input: Record<string, unknown>, existing?: Le
     return {id: String(item.id ?? `recall-${randomUUID()}`), prompt, answer, sortOrder: index};
   });
   if (title.length < 2 || title.length > 160 || description && description.length > 1000) throw new HttpError(422, 'VALIDATION_ERROR', '卡片标题需为 2 到 160 个字，说明不能超过 1000 个字');
-  if (!['image_gallery', 'html'].includes(contentType) || !Number.isInteger(sortOrder) || sortOrder < 0 || sortOrder > 99999 || !Array.isArray(rawAssets)) throw new HttpError(422, 'VALIDATION_ERROR', '卡片类型、素材或排序不正确');
+  if (!['image_gallery', 'html', 'pdf'].includes(contentType) || !Number.isInteger(sortOrder) || sortOrder < 0 || sortOrder > 99999 || !Array.isArray(rawAssets)) throw new HttpError(422, 'VALIDATION_ERROR', '卡片类型、素材或排序不正确');
   const assets: LearningCardAsset[] = rawAssets.map((raw, index) => {
     const item = raw && typeof raw === 'object' ? raw as Record<string, unknown> : {};
     const type = String(item.type ?? ''); const reference = String(item.reference ?? '').trim(); const filename = String(item.filename ?? '').trim(); const sizeBytes = Number(item.sizeBytes ?? 0);
-    const match = /^\/v1\/learning-card-assets\/([a-f0-9-]+)\.(jpg|jpeg|png|webp|gif|html)$/.exec(reference);
-    const extension = match?.[2]; const typeMatches = type === 'image' ? ['jpg', 'jpeg', 'png', 'webp', 'gif'].includes(extension ?? '') : type === 'html' && extension === 'html';
+    const match = /^\/v1\/learning-card-assets\/([a-f0-9-]+)\.(jpg|jpeg|png|webp|gif|html|pdf)$/.exec(reference);
+    const extension = match?.[2]; const typeMatches = type === 'image' ? ['jpg', 'jpeg', 'png', 'webp', 'gif'].includes(extension ?? '') : type === 'html' ? extension === 'html' : type === 'pdf' && extension === 'pdf';
     if (!match || !typeMatches || filename.length < 1 || filename.length > 255 || !Number.isInteger(sizeBytes) || sizeBytes < 1) throw new HttpError(422, 'CARD_ASSET_INVALID', `第 ${index + 1} 个卡片素材不是后台上传的有效文件`);
-    return {id: String(item.id ?? match[1]), type: type as 'image' | 'html', filename, reference, sizeBytes, sortOrder: index};
+    return {id: String(item.id ?? match[1]), type: type as LearningCardAsset['type'], filename, reference, sizeBytes, sortOrder: index};
   });
   if (contentType === 'image_gallery' && (assets.length < 1 || assets.length > 20 || assets.some(item => item.type !== 'image'))) throw new HttpError(422, 'VALIDATION_ERROR', '图片卡片需上传 1 到 20 张图片');
   if (contentType === 'html' && (assets.length !== 1 || assets[0].type !== 'html')) throw new HttpError(422, 'VALIDATION_ERROR', 'HTML 卡片必须上传且只能上传一个 HTML 文件');
+  if (contentType === 'pdf' && (assets.length !== 1 || assets[0].type !== 'pdf')) throw new HttpError(422, 'VALIDATION_ERROR', 'PDF 卡片必须上传且只能上传一个 PDF 文件');
   const now = new Date().toISOString();
   return {id: existing?.id ?? `lcard-${randomUUID()}`, title, ...(description ? {description} : {}), contentType, assets, recallItems, sortOrder, status: existing?.status ?? 'draft', version: existing?.version ?? 1, createdAt: existing?.createdAt ?? now, updatedAt: now, ...(existing?.publishedAt ? {publishedAt: existing.publishedAt} : {})};
 }
@@ -5053,10 +5054,10 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
       await recordLearningPlanVersion(plan, reason, 'admin', admin.adminId, requestId);
       return send(res, 200, task, requestId);
     }
-    const learningCardAssetMatch = path.match(/^\/v1\/learning-card-assets\/([a-f0-9-]+)\.(jpg|jpeg|png|webp|gif|html)$/);
+    const learningCardAssetMatch = path.match(/^\/v1\/learning-card-assets\/([a-f0-9-]+)\.(jpg|jpeg|png|webp|gif|html|pdf)$/);
     if (learningCardAssetMatch && req.method === 'GET') {
       const extension = learningCardAssetMatch[2];
-      const contentTypes: Record<string, string> = {jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', gif: 'image/gif', html: 'text/html; charset=utf-8'};
+      const contentTypes: Record<string, string> = {jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', gif: 'image/gif', html: 'text/html; charset=utf-8', pdf: 'application/pdf'};
       const filePath = join(process.env.DEBAO_UPLOAD_DIR ?? join(process.cwd(), 'uploads'), 'learning-card-assets', `${learningCardAssetMatch[1]}.${extension}`);
       let fileStat; try { fileStat = await stat(filePath); } catch { throw new HttpError(404, 'CARD_ASSET_NOT_FOUND', '卡片素材不存在'); }
       const securityHeaders = extension === 'html' ? {'content-security-policy': "sandbox; default-src 'none'; img-src data: https:; style-src 'unsafe-inline'; font-src data:", 'x-content-type-options': 'nosniff'} : {'x-content-type-options': 'nosniff'};
@@ -5071,11 +5072,11 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
     }
     if (req.method === 'POST' && path === '/v1/admin/learning-cards/assets') {
       const admin = requireAdmin(req); const contentType = String(req.headers['content-type'] ?? '').split(';')[0].toLowerCase();
-      const supported: Record<string, {extension: string; type: 'image' | 'html'; maxBytes: number}> = {
-        'image/jpeg': {extension: 'jpg', type: 'image', maxBytes: 15 * 1024 * 1024}, 'image/png': {extension: 'png', type: 'image', maxBytes: 15 * 1024 * 1024}, 'image/webp': {extension: 'webp', type: 'image', maxBytes: 15 * 1024 * 1024}, 'image/gif': {extension: 'gif', type: 'image', maxBytes: 15 * 1024 * 1024}, 'text/html': {extension: 'html', type: 'html', maxBytes: 10 * 1024 * 1024}, 'application/xhtml+xml': {extension: 'html', type: 'html', maxBytes: 10 * 1024 * 1024},
+      const supported: Record<string, {extension: string; type: 'image' | 'html' | 'pdf'; maxBytes: number}> = {
+        'image/jpeg': {extension: 'jpg', type: 'image', maxBytes: 15 * 1024 * 1024}, 'image/png': {extension: 'png', type: 'image', maxBytes: 15 * 1024 * 1024}, 'image/webp': {extension: 'webp', type: 'image', maxBytes: 15 * 1024 * 1024}, 'image/gif': {extension: 'gif', type: 'image', maxBytes: 15 * 1024 * 1024}, 'text/html': {extension: 'html', type: 'html', maxBytes: 10 * 1024 * 1024}, 'application/xhtml+xml': {extension: 'html', type: 'html', maxBytes: 10 * 1024 * 1024}, 'application/pdf': {extension: 'pdf', type: 'pdf', maxBytes: 30 * 1024 * 1024},
       };
-      const assetConfig = supported[contentType]; if (!assetConfig) throw new HttpError(422, 'CARD_ASSET_TYPE_INVALID', '仅支持 JPG、PNG、WebP、GIF 图片或 HTML 文件');
-      const declaredSize = Number(req.headers['content-length'] ?? 0); if (declaredSize > assetConfig.maxBytes) throw new HttpError(413, 'PAYLOAD_TOO_LARGE', `${assetConfig.type === 'image' ? '图片' : 'HTML'}文件不能超过 ${assetConfig.maxBytes / 1024 / 1024} MB`);
+      const assetConfig = supported[contentType]; if (!assetConfig) throw new HttpError(422, 'CARD_ASSET_TYPE_INVALID', '仅支持 JPG、PNG、WebP、GIF 图片、HTML 或 PDF 文件');
+      const declaredSize = Number(req.headers['content-length'] ?? 0); if (declaredSize > assetConfig.maxBytes) throw new HttpError(413, 'PAYLOAD_TOO_LARGE', `${assetConfig.type === 'image' ? '图片' : assetConfig.type === 'pdf' ? 'PDF' : 'HTML'}文件不能超过 ${assetConfig.maxBytes / 1024 / 1024} MB`);
       const id = randomUUID(); const directory = join(process.env.DEBAO_UPLOAD_DIR ?? join(process.cwd(), 'uploads'), 'learning-card-assets'); await mkdir(directory, {recursive: true}); const sizeBytes = await storeBinaryBody(req, join(directory, `${id}.${assetConfig.extension}`), assetConfig.maxBytes);
       const rawName = String(req.headers['x-file-name'] ?? ''); let filename = `卡片素材.${assetConfig.extension}`; try { filename = decodeURIComponent(rawName) || filename; } catch { /* use fallback */ }
       await persist('insert into admin_audit_logs (admin_user_id, action, resource_type, resource_id, reason, request_id) values ($1,$2,$3,$4,$5,$6)', [admin.adminId, 'learning_card.asset.upload', 'learning_card_asset', id, `${assetConfig.type}:${filename}:${sizeBytes}`, requestId]);

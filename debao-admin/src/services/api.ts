@@ -733,7 +733,7 @@ export interface AdminLearningQuestionStats {
 }
 export interface AdminLearningCardAsset {
   id: string;
-  type: "image" | "html";
+  type: "image" | "html" | "pdf";
   filename: string;
   reference: string;
   sizeBytes: number;
@@ -749,7 +749,7 @@ export interface AdminLearningCard {
   id: string;
   title: string;
   description?: string;
-  contentType: "image_gallery" | "html";
+  contentType: "image_gallery" | "html" | "pdf";
   assets: AdminLearningCardAsset[];
   recallItems: AdminLearningCardRecallItem[];
   sortOrder: number;
@@ -1378,6 +1378,7 @@ export function uploadLearningCardAsset(
       gif: "image/gif",
       html: "text/html",
       htm: "text/html",
+      pdf: "application/pdf",
     };
     const xhr = new XMLHttpRequest();
     xhr.open("POST", "/v1/admin/learning-cards/assets");
