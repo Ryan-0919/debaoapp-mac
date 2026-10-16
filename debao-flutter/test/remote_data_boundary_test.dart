@@ -200,7 +200,7 @@ void main() {
     expect(find.text('请求权基础答题训练'), findsNothing);
     expect(find.text('法考全科音频串讲班'), findsNothing);
     await tester.pumpAndSettle();
-    expect(find.text('我的答疑'), findsOneWidget);
+    expect(find.byKey(const ValueKey('learning-my-inquiries')), findsNothing);
     await tester.tap(find.text('题目'));
     await tester.pump();
     expect(find.byKey(const ValueKey('question-tab-my-inquiries')),

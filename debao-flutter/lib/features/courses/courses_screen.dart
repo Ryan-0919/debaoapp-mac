@@ -336,31 +336,6 @@ class _CoursesScreenState extends ConsumerState<_CoursesScreenBody> {
   String courseCategory = 'objective';
   String courseMedia = 'video';
 
-  Widget _inquiryEntry() {
-    final inquiries = widget.remoteEnabled
-        ? ref.watch(learningInquiriesProvider).valueOrNull
-        : null;
-    final waiting =
-        inquiries?.where((item) => item.status == 'pending').length ?? 0;
-    final answered =
-        inquiries?.where((item) => item.status == 'answered').length ?? 0;
-    return ListTile(
-      key: const ValueKey('learning-my-inquiries'),
-      leading:
-          const Icon(Icons.question_answer_outlined, color: DebaoColors.brand),
-      title: const Text('我的答疑'),
-      subtitle: Text(
-          inquiries == null ? '查看错因提问和老师回复' : '$waiting 条待回复 · $answered 条已回复'),
-      trailing: const Icon(Icons.chevron_right),
-      onTap: () async {
-        ref.invalidate(learningInquiriesProvider);
-        await Navigator.push(context,
-            MaterialPageRoute(builder: (_) => const LearningInquiriesScreen()));
-        ref.invalidate(learningInquiriesProvider);
-      },
-    );
-  }
-
   @override
   void initState() {
     super.initState();
@@ -459,7 +434,6 @@ class _CoursesScreenState extends ConsumerState<_CoursesScreenBody> {
     if (tasks.isEmpty) {
       return ListView(padding: const EdgeInsets.only(bottom: 24), children: [
         _remoteCalendarHeader(),
-        _inquiryEntry(),
         _taskFilters(),
         _groupEmpty('暂无学习日历数据'),
       ]);
@@ -469,7 +443,6 @@ class _CoursesScreenState extends ConsumerState<_CoursesScreenBody> {
         padding: const EdgeInsets.only(bottom: 24),
         children: [
           _remoteCalendarHeader(),
-          _inquiryEntry(),
           _taskFilters(),
           _remoteWeekStrip(sessionsByDate),
           Padding(
@@ -1547,17 +1520,21 @@ class _CoursesScreenState extends ConsumerState<_CoursesScreenBody> {
         : const AsyncValue<List<Course>>.data([]);
     if (state.isLoading && !state.hasValue) {
       return const Center(
-          child: CircularProgressIndicator(key: ValueKey('my-courses-loading')));
+          child:
+              CircularProgressIndicator(key: ValueKey('my-courses-loading')));
     }
     if (state.hasError && !state.hasValue) {
       return _remoteError(state.error.toString());
     }
 
-    final courses = (state.valueOrNull ?? const <Course>[]).where((course) {
-      final type = course.type.toLowerCase();
-      return !type.contains('live') && !type.contains('直播');
-    }).where((course) => _courseQuestionType(course) == courseCategory).where(
-        (course) => _courseHasMedia(course, courseMedia)).toList(growable: false);
+    final courses = (state.valueOrNull ?? const <Course>[])
+        .where((course) {
+          final type = course.type.toLowerCase();
+          return !type.contains('live') && !type.contains('直播');
+        })
+        .where((course) => _courseQuestionType(course) == courseCategory)
+        .where((course) => _courseHasMedia(course, courseMedia))
+        .toList(growable: false);
     final categoryLabel = courseCategory == 'subjective' ? '主观题' : '客观题';
     final mediaLabel = courseMedia == 'audio' ? '音频课程' : '视频课程';
 
@@ -1578,15 +1555,15 @@ class _CoursesScreenState extends ConsumerState<_CoursesScreenBody> {
             labels: const ['主观题', '客观题'],
             selected: courseCategory == 'subjective' ? 0 : 1,
             onChanged: (index) => setState(() {
-              courseCategory = index == 0 ? 'subjective' : 'objective';
-            })),
+                  courseCategory = index == 0 ? 'subjective' : 'objective';
+                })),
         const SizedBox(height: 12),
         DebaoSegmented(
             labels: const ['音频课程', '视频课程'],
             selected: courseMedia == 'audio' ? 0 : 1,
             onChanged: (index) => setState(() {
-              courseMedia = index == 0 ? 'audio' : 'video';
-            })),
+                  courseMedia = index == 0 ? 'audio' : 'video';
+                })),
         const SizedBox(height: 18),
         Row(children: [
           Expanded(
@@ -1620,9 +1597,7 @@ class _CoursesScreenState extends ConsumerState<_CoursesScreenBody> {
       return 'objective';
     }
     final title = course.title.toLowerCase();
-    return title.contains('主观') ||
-            title.contains('案例') ||
-            title.contains('论述')
+    return title.contains('主观') || title.contains('案例') || title.contains('论述')
         ? 'subjective'
         : 'objective';
   }
