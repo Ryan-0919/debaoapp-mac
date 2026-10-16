@@ -1099,7 +1099,10 @@ function activeTeacherForStage(stageId: string) {
 }
 
 function publicLearningStage(stage: LearningStage) {
-  return {...stage, conditions: stage.conditions.map(condition => ({...condition}))};
+  const teacherIds = stage.teacherIds === undefined
+    ? store.learningTeachers.filter(item => item.stageId === stage.id && item.status === 'active').map(item => item.id)
+    : stage.teacherIds;
+  return {...stage, teacherIds, conditions: stage.conditions.map(condition => ({...condition}))};
 }
 
 function publicLearningClassType(classType: LearningClassType) {
@@ -5390,7 +5393,7 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
       const admin = requireAdmin(req); const teacher = store.learningTeachers.find(item => item.id === decodePathSegment(adminLearningTeacher[1])); if (!teacher) throw new HttpError(404, 'LEARNING_TEACHER_NOT_FOUND', '师资不存在'); const input = await body(req); const name = input.name === undefined ? teacher.name : String(input.name).trim(); const subject = input.subject === undefined ? teacher.subject : String(input.subject).trim(); const specialty = input.specialty === undefined ? teacher.specialty : String(input.specialty).trim(); const sortOrder = input.sortOrder === undefined ? teacher.sortOrder : Number(input.sortOrder); const status = input.status === undefined ? teacher.status : String(input.status); if (name.length < 2 || name.length > 80 || subject.length < 1 || subject.length > 120 || specialty.length < 2 || specialty.length > 500 || !Number.isInteger(sortOrder) || sortOrder < 0 || sortOrder > 9999 || !['active', 'disabled'].includes(status)) throw new HttpError(422, 'VALIDATION_ERROR', '师资信息不正确'); const updatedAt = new Date().toISOString(); await persistAdminMutation([{text: 'update learning_teachers set name=$1,subject=$2,specialty=$3,sort_order=$4,status=$5,updated_by=$6,updated_at=$7 where id=$8', values: [name, subject, specialty, sortOrder, status, admin.adminId, updatedAt, teacher.id]}], [admin.adminId, 'learning_teacher.edit', 'learning_teacher', teacher.id, '编辑阶段师资', requestId]); Object.assign(teacher, {name, subject, specialty, sortOrder, status, updatedAt}); return send(res, 200, publicLearningTeacher(teacher), requestId);
     }
     if (adminLearningTeacher && req.method === 'DELETE') {
-      const admin = requireAdmin(req); const teacher = store.learningTeachers.find(item => item.id === decodePathSegment(adminLearningTeacher[1])); if (!teacher) throw new HttpError(404, 'LEARNING_TEACHER_NOT_FOUND', '师资不存在'); await persistAdminMutation([{text: 'delete from learning_teachers where id=$1', values: [teacher.id]}], [admin.adminId, 'learning_teacher.delete', 'learning_teacher', teacher.id, '删除阶段师资', requestId]); store.learningTeachers = store.learningTeachers.filter(item => item.id !== teacher.id); return send(res, 200, {deleted: true, id: teacher.id}, requestId);
+      const admin = requireAdmin(req); const teacher = store.learningTeachers.find(item => item.id === decodePathSegment(adminLearningTeacher[1])); if (!teacher) throw new HttpError(404, 'LEARNING_TEACHER_NOT_FOUND', '师资不存在'); const assignmentInUse = store.learningTeacherAssignments.some(item => item.teacherId === teacher.id); if (assignmentInUse) throw new HttpError(409, 'LEARNING_TEACHER_IN_USE', '该老师已有历史分配记录，请改为停用'); await persistAdminMutation([{text: 'delete from learning_teachers where id=$1', values: [teacher.id]}, {text: "update learning_stages set teacher_ids = coalesce((select jsonb_agg(value) from jsonb_array_elements_text(teacher_ids) where value <> $1), '[]'::jsonb) where teacher_ids ? $1", values: [teacher.id]}], [admin.adminId, 'learning_teacher.delete', 'learning_teacher', teacher.id, '删除全局师资', requestId]); store.learningTeachers = store.learningTeachers.filter(item => item.id !== teacher.id); store.learningStages = store.learningStages.map(stage => ({...stage, teacherIds: (stage.teacherIds ?? []).filter(id => id !== teacher.id)})); return send(res, 200, {deleted: true, id: teacher.id}, requestId);
     }
     if (req.method === 'GET' && path === '/v1/admin/learning-diagnostic/results') {
       requireAdmin(req, 'learning.diagnostics.read');
