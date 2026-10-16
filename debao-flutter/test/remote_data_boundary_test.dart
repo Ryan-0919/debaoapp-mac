@@ -201,10 +201,6 @@ void main() {
     expect(find.text('法考全科音频串讲班'), findsNothing);
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('learning-my-inquiries')), findsNothing);
-    await tester.tap(find.text('题目'));
-    await tester.pump();
-    expect(find.byKey(const ValueKey('question-tab-my-inquiries')),
-        findsOneWidget);
   });
 
   testWidgets('远端批改套卷缺少编号时不回退本地演示页', (tester) async {

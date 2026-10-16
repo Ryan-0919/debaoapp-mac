@@ -1,5 +1,4 @@
 import '../../core/config/app_environment.dart';
-import '../learning/learning_inquiries_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -332,7 +331,6 @@ class _CoursesScreenState extends ConsumerState<_CoursesScreenBody> {
   final checkedInSessionIds = <String>{};
   final completedCardSessionIds = <String>{};
   bool diagnosticPromptShown = false;
-  String taskFilter = '全部';
   String courseCategory = 'objective';
   String courseMedia = 'video';
 
@@ -420,30 +418,12 @@ class _CoursesScreenState extends ConsumerState<_CoursesScreenBody> {
     final tasks = remote.asData?.value ?? const <LearningTask>[];
     final sessionsByDate = _remoteSessionsByDate(tasks);
     final allSessions = sessionsByDate[selectedKey] ?? const <_Session>[];
-    final sessions = allSessions
-        .where((item) =>
-            taskFilter == '全部' ||
-            switch (taskFilter) {
-              '课程' => item.type == _SessionType.main ||
-                  item.type == _SessionType.supplement,
-              '卡片' => item.type == _SessionType.card,
-              '题目' => item.type == _SessionType.practice,
-              _ => true,
-            })
-        .toList();
-    if (tasks.isEmpty) {
-      return ListView(padding: const EdgeInsets.only(bottom: 24), children: [
-        _remoteCalendarHeader(),
-        _taskFilters(),
-        _groupEmpty('暂无学习日历数据'),
-      ]);
-    }
+    final sessions = allSessions;
     return ListView(
         key: const ValueKey('courses-calendar-remote-scroll'),
         padding: const EdgeInsets.only(bottom: 24),
         children: [
           _remoteCalendarHeader(),
-          _taskFilters(),
           _remoteWeekStrip(sessionsByDate),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 13, 16, 8),
@@ -465,29 +445,6 @@ class _CoursesScreenState extends ConsumerState<_CoursesScreenBody> {
             ...sessions.map(_sessionCard),
         ]);
   }
-
-  Widget _taskFilters() => Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Wrap(spacing: 8, children: [
-        for (final label in ['课程', '卡片', '题目', '全部'])
-          ChoiceChip(
-              label: Text(label),
-              selected: taskFilter == label,
-              onSelected: (_) => setState(() => taskFilter = label)),
-        if (taskFilter == '题目')
-          ActionChip(
-            key: const ValueKey('question-tab-my-inquiries'),
-            avatar: const Icon(Icons.question_answer_outlined, size: 16),
-            label: const Text('我的答疑'),
-            onPressed: () {
-              ref.invalidate(learningInquiriesProvider);
-              Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                      builder: (_) => const LearningInquiriesScreen()));
-            },
-          ),
-      ]));
 
   Widget _remoteWeekStrip(Map<String, List<_Session>> sessionsByDate) {
     final days = _weekFor(selectedKey);
